@@ -62,7 +62,7 @@ describe("Range Proof", () => {
         const { proof, publicSignals } = await snarkjs.groth16.prove(zkey, witnessBuffer);
         const {a, b, c} = parseProof(proof);
 
-        //out, a, b
+        //a, b
         expect(await contract.check(
             a, b, c,
             [1, 20]
@@ -90,7 +90,7 @@ describe("Range Proof", () => {
         const { proof, publicSignals } = await snarkjs.groth16.prove(zkey, witnessBuffer);
         const {a, b, c} = parseProof(proof);
 
-        //out, a, b
+        //a, b
         expect(await contract.check(
             a, b, c,
             [1, 41]
