@@ -32,17 +32,16 @@ describe("Range Proof", () => {
     })
 
     it("Test default proof", async () => {
-        let m = 10001;
         const proof = require("../circuit/range_proof_js/proof.json");
 
         const {a, b, c} = parseProof(proof)
         expect(await contract.check(
             a, b, c,
-            [1, 1, 10000]
+            [1, 10000]
         )).to.eq(true)
     })
 
-    it("Test dynamic proof", async() => {
+    it("Test dynamic proof should equal", async() => {
         // m is secret, a, b is the range
         let input = {
             "a": 1,
@@ -66,7 +65,35 @@ describe("Range Proof", () => {
         //out, a, b
         expect(await contract.check(
             a, b, c,
-            [1, 1, 20]
+            [1, 20]
         )).to.eq(true)
+    })
+
+    it("Test dynamic proof should fail", async() => {
+        // m is secret, a, b is the range
+        let input = {
+            "a": 1,
+            "b": 20,
+            "m": 2
+        }
+        let wasm = path.join(__dirname, "../circuit/range_proof_js", "range_proof.wasm");
+        let zkey = path.join(__dirname, "../circuit/range_proof_js", "circuit_final.zkey");
+        let vkeypath = path.join(__dirname, "../circuit/range_proof_js", "verification_key.json");
+        const wc = require("../circuit/range_proof_js/witness_calculator");
+        const buffer = fs.readFileSync(wasm);
+        const witnessCalculator = await wc(buffer);
+
+        const witnessBuffer = await witnessCalculator.calculateWTNSBin(
+            input,
+            0
+        );
+        const { proof, publicSignals } = await snarkjs.groth16.prove(zkey, witnessBuffer);
+        const {a, b, c} = parseProof(proof);
+
+        //out, a, b
+        expect(await contract.check(
+            a, b, c,
+            [1, 41]
+        )).to.eq(false)
     })
 })
