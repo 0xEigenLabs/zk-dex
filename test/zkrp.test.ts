@@ -91,7 +91,7 @@ describe("Range Proof", () => {
         const {a, b, c} = parseProof(proof);
 
         //a, b
-        expect(await contract.check(
+        expect(await contract.verifyRangeProof(
             a, b, c,
             [1, 41]
         )).to.eq(false)

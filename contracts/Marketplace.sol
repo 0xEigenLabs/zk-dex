@@ -15,7 +15,7 @@ contract Marketplace {
         uint id;
         address trader;
         BuyOrSell buyOrSell;
-        uint price;
+        uint rateComm;
         Bucket bucket;
     }
 
