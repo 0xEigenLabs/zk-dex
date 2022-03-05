@@ -14,7 +14,7 @@ contract Marketplace {
     struct Order {
         uint id;
         address trader;
-        BuyOrSell buyOrSell;
+        uint buyOrSell; // 0 BUY, 1 SELL
         uint rateComm;
         Bucket bucket;
     }
@@ -36,13 +36,15 @@ contract Marketplace {
 
     OrderPair[] private matchedOrders;
 
-    function chooseBuckets(uint bucketWidth) public pure returns (Bucket[] memory) {
-        uint endValue = 100000;
+    uint DEFAULT_BUCKET_WIDTH = 1000;
+
+    function chooseBuckets() public view returns (Bucket[] memory) {
+        uint endValue = 10000;
         uint startValue = 0;
-        uint bucketCount = endValue.sub(startValue).div(bucketWidth).add(1);
+        uint bucketCount = endValue.sub(startValue).div(DEFAULT_BUCKET_WIDTH).add(1);
         Bucket[] memory buckets = new Bucket[](bucketCount);
         for (uint i = 0; i < buckets.length; i++) {
-            buckets[i] = Bucket(startValue + i * bucketWidth, bucketWidth, i); 
+            buckets[i] = Bucket(startValue + i * DEFAULT_BUCKET_WIDTH, DEFAULT_BUCKET_WIDTH, i); 
         }
         return buckets;
     }
