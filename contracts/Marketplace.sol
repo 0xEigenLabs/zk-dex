@@ -49,16 +49,16 @@ contract Marketplace {
 
     function matching(Order[] memory buyOrders, Order[] memory sellOrders) public returns (OrderPair[] memory) {
         uint buyIdx = 0;
-        uint sellIdx = 0;
+        uint sellIdx = sellOrders.length - 1;
         
-        while (buyIdx < buyOrders.length && sellIdx < sellOrders.length) {
+        while (buyIdx < buyOrders.length && sellIdx >= 0) {
             Order memory buyOrder = buyOrders[buyIdx];
             Order memory sellOrder = sellOrders[sellIdx];
             if(buyOrder.bucket.startValue > sellOrder.bucket.startValue) {
                 OrderPair memory pair = OrderPair(buyOrder, sellOrder);
                 matchedOrders.push(pair);
                 buyIdx += 1;
-                sellIdx += 1;
+                sellIdx -= 1;
             } else {
                 buyIdx += 1;
             }

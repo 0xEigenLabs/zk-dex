@@ -59,7 +59,6 @@ contract Bucketization is Marketplace {
         Order[] memory sortedSell = sort(SellOrders);
         Order[] memory sortedBuy = sort(BuyOrders);
 
-        // TODO reverse sortedSell
         OrderPair memory matchedPair = matching(sortedBuy, sortedSell);
 
         for (var i = 0; i < matchedPair.length; i ++) {
