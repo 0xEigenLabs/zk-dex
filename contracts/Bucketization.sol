@@ -2,17 +2,16 @@
 pragma solidity ^0.8.0;
 
 import "@ieigen/pedersencommitment/contracts/PedersenCommitment.sol";
-import "@openzepplin/contracts/utils/Counter.sol";
+import "@openzeppelin/contracts/utils/Counters.sol";
 import "./Marketplace.sol";
 import "./RangeProof.sol";
 
-contract Bucketization is Marketplace {
+contract Bucketization is Marketplace, RangeProof {
     using Counters for Counters.Counter;
     Counters.Counter private _orderId;
     Counters.Counter private _pairId;
 
     PedersenCommitment _pc;
-    RangeProof _rp;
 
     mapping (address => uint[2]) private _credits;
 
@@ -21,12 +20,13 @@ contract Bucketization is Marketplace {
         address account;
         uint rateComm;
         uint BuyOrSell; // 0 BUY, 1 SELL
-    };
+    }
 
     address private _marketplaceAccount;
 
     constructor() {
         _marketplaceAccount = msg.sender;
+        _pc = new PedersenCommitment();
     }
 
     UnmatchedOrder[] private _unmatchedOrders;
@@ -46,7 +46,11 @@ contract Bucketization is Marketplace {
     function attachOrderBook(uint id, Bucket memory bucket, uint[2] memory a, uint[2][2] memory b, uint[2] memory c) public {
         UnmatchedOrder memory order = _unmatchedOrders[_orderIdToOrderIdx[id]];
         uint[2] memory input = [bucket.startValue, bucket.startValue + bucket.width];
-        require(_rp.verifyRangeProof(a, b, c, input), "B: Invalid range proof");
+
+        // check the bucket including the rateComm
+        require(verifyRangeProof(a, b, c, input), "B: Invalid range proof");
+
+        // TODO check the rateComm is exactly from order id
 
         if (order.BuyOrSell == 0) {
             BuyOrders.push(Order(id, order.account, BuyOrSell.BUY, order.rateComm, bucket));

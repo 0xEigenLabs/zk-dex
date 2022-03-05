@@ -50,7 +50,7 @@ contract Marketplace {
     function matching(Order[] memory buyOrders, Order[] memory sellOrders) public returns (OrderPair[] memory) {
         uint buyIdx = 0;
         uint sellIdx = sellOrders.length - 1;
-        
+
         while (buyIdx < buyOrders.length && sellIdx >= 0) {
             Order memory buyOrder = buyOrders[buyIdx];
             Order memory sellOrder = sellOrders[sellIdx];
