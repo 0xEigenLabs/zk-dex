@@ -27,6 +27,7 @@ contract Bucketization is Marketplace, RangeProof {
     constructor() {
         _marketplaceAccount = msg.sender;
         _pc = new PedersenCommitment();
+        _pc.setH();
     }
 
     UnmatchedOrder[] private _unmatchedOrders;
@@ -89,7 +90,7 @@ contract Bucketization is Marketplace, RangeProof {
         OrderPair memory pair = _matchedPair[pairId];
 
         // TODO check pair
-        
+
         uint feeComm = _pc.subCommitment(pair.buyOrder.rateComm, pair.sellOrder.rateComm);
         require(feeComm == proof, "B: Invalid fee comm");
         require(_pc.verify(fees, feeComm), "B: Invalid fee comm");
@@ -98,7 +99,7 @@ contract Bucketization is Marketplace, RangeProof {
         _marketplaceAccount.transfer(fees);
 
         delete _matchedPair[pairId];
-        uint len = _pairIdToOrderIdx[msg.sender],length - 1;
+        uint len = _pairIdToOrderIdx[msg.sender].length - 1;
         for (var i = 0; i < len; i ++) {
             if (pairId == _pairIdToOrderIdx[msg.sender][i]) {
                _pairIdToOrderIdx[msg.sender][i] = _pairIdToOrderIdx[msg.sender][len];
