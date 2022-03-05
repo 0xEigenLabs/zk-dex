@@ -99,9 +99,6 @@ contract Bucketization is Marketplace, RangeProof {
 
         delete _matchedPair[pairId];
         uint len = _pairIdToOrderIdx[msg.sender],length - 1;
-        if (len == 0) {
-            return;
-        }
         for (var i = 0; i < len; i ++) {
             if (pairId == _pairIdToOrderIdx[msg.sender][i]) {
                _pairIdToOrderIdx[msg.sender][i] = _pairIdToOrderIdx[msg.sender][len];
