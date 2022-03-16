@@ -15,7 +15,8 @@ contract Marketplace {
         uint id;
         address trader;
         uint buyOrSell; // 0 BUY, 1 SELL
-        uint rateComm;
+        uint256 rateCommX;
+        uint256 rateCommY;
         Bucket bucket;
     }
 
@@ -36,10 +37,10 @@ contract Marketplace {
 
     OrderPair[] private matchedOrders;
 
-    uint DEFAULT_BUCKET_WIDTH = 1000;
+    uint DEFAULT_BUCKET_WIDTH = 10;
 
     function chooseBuckets() public view returns (Bucket[] memory) {
-        uint endValue = 10000;
+        uint endValue = 100;
         uint startValue = 0;
         uint bucketCount = endValue.sub(startValue).div(DEFAULT_BUCKET_WIDTH).add(1);
         Bucket[] memory buckets = new Bucket[](bucketCount);
@@ -50,6 +51,25 @@ contract Marketplace {
     }
 
     function matching(Order[] memory buyOrders, Order[] memory sellOrders) public returns (OrderPair[] memory) {
+        uint buyIdx = 0;
+        uint sellIdx = 0;
+
+        while (buyIdx < buyOrders.length && sellIdx < sellOrders.length) {
+            Order memory buyOrder = buyOrders[buyIdx];
+            Order memory sellOrder = sellOrders[sellIdx];
+            if(buyOrder.bucket.startValue > sellOrder.bucket.startValue) {
+                OrderPair memory pair = OrderPair(buyOrder, sellOrder);
+                matchedOrders.push(pair);
+                buyIdx += 1;
+                sellIdx += 1;
+            } else {
+                buyIdx += 1;
+            }
+        }
+        return matchedOrders;
+    }
+
+    function matching1(Order[] memory buyOrders, Order[] memory sellOrders) public returns (OrderPair[] memory) {
         uint buyIdx = 0;
         uint sellIdx = sellOrders.length - 1;
 
@@ -69,7 +89,7 @@ contract Marketplace {
     }
 
     function sort(Order[] memory orderBook) public returns (Order[] memory) {
-        quickSort(orderBook, 0, orderBook.length);
+        quickSort(orderBook, 0, orderBook.length - 1);
         return orderBook;
     }
   

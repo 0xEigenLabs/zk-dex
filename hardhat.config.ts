@@ -17,11 +17,25 @@ task("accounts", "Prints the list of accounts", async (taskArgs, hre) => {
 });
 
 module.exports = {
-  solidity: '0.8.3',
+  solidity: {
+    version: '0.8.3',
+    settings: {
+      optimizer: {
+        enabled: true,
+	        runs: 200,
+        details: {
+          yul: true,
+          yulDetails: {
+            stackAllocation: true,
+          }
+	      }	
+      }
+    }
+  },
   typechain: {
     outDir: 'typechain',
     target: 'ethers-v5',
     alwaysGenerateOverloads: false // should overloads with full signatures like deposit(uint256) be generated always, even if there are no overloads?
-  }
+  },
 }
 

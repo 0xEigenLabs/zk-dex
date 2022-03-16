@@ -12,6 +12,7 @@
   "author": "",
   "license": "Apache-2.0",
   "dependencies": {
+    "@ieigen/anonmisc": "^0.0.1",
     "@mattrglobal/node-bbs-signatures": "^0.13.0",
     "@openzeppelin/contracts": "^4.5.0",
     "bignumber.js": "^9.0.2",
