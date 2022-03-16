@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.0;
 
-import "@ieigen/pedersencommitment/contracts/PedersenCommitment.sol";
+import "@ieigen/anonmisc/contracts/PedersenCommitment.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
 import "./Marketplace.sol";
 import "./RangeProof.sol";
+
+import "hardhat/console.sol";
 
 contract Bucketization is Marketplace, RangeProof {
     using Counters for Counters.Counter;
@@ -13,19 +15,20 @@ contract Bucketization is Marketplace, RangeProof {
 
     PedersenCommitment _pc;
 
-    mapping (address => uint[2]) private _credits;
+    mapping (address => uint256[3]) private _credits; // array[0] => r || array[1] => X || array[2] => Y
 
     struct UnmatchedOrder {
         uint id;
         address account;
-        uint rateComm;
-        uint BuyOrSell; // 0 BUY, 1 SELL
+        uint256 rateCommX;
+        uint256 rateCommY;
+        uint buyOrSell; // 0 BUY, 1 SELL
     }
 
-    address private _marketplaceAccount;
+    address payable private _marketplaceAccount;
 
-    constructor() {
-        _marketplaceAccount = msg.sender;
+    constructor(address payable marketplaceAccount) {
+        _marketplaceAccount = marketplaceAccount; // to be comfired
         _pc = new PedersenCommitment();
         _pc.setH();
     }
@@ -38,12 +41,12 @@ contract Bucketization is Marketplace, RangeProof {
     mapping (address => uint[]) private _sellerAddrToPairIds;
 
     // 3.1-3.4
-    function submitOrder(address account, uint rateComm, uint kind) public returns(uint) {
+    function submitOrder(address account, uint256 rateCommX, uint256 rateCommY, uint kind) public returns(uint) {
         _orderId.increment();
-        uint id = _orderId.current();
+        uint256 id = _orderId.current();
         _orderIdToOrderIdx[id] = _unmatchedOrders.length;
-        _unmatchedOrders.push(UnmatchedOrder(id, account, rateComm, kind));
-        return id;
+        _unmatchedOrders.push(UnmatchedOrder(id, account, rateCommX, rateCommY, kind));
+        return uint(id);
     }
 
     // 3.10-3.12
@@ -56,10 +59,10 @@ contract Bucketization is Marketplace, RangeProof {
 
         // TODO check the rateComm is exactly from order id
 
-        if (order.BuyOrSell == 0) {
-            BuyOrders.push(Order(id, order.account, BuyOrSell.BUY, order.rateComm, bucket));
+        if (order.buyOrSell == 0) {
+            BuyOrders.push(Order(id, order.account, 0, order.rateCommX, order.rateCommY, bucket));
         } else {
-            SellOrders.push(Order(id, order.account, BuyOrSell.BUY, order.rateComm, bucket));
+            SellOrders.push(Order(id, order.account, 1, order.rateCommX, order.rateCommY, bucket));
         }
     }
 
@@ -68,7 +71,7 @@ contract Bucketization is Marketplace, RangeProof {
         Order[] memory sortedSell = sort(SellOrders);
         Order[] memory sortedBuy = sort(BuyOrders);
 
-        OrderPair memory matchedPair = matching(sortedBuy, sortedSell);
+        OrderPair[] memory matchedPair = matching(sortedBuy, sortedSell);
 
         for (uint i = 0; i < matchedPair.length; i ++) {
             _pairId.increment();
@@ -78,27 +81,27 @@ contract Bucketization is Marketplace, RangeProof {
         }
     }
 
-    function findMatchedSeller(uint orderId, address buyerAddr) public view returns (address, uint) {
+    function findMatchedSeller(uint orderId, address buyerAddr) public view returns (address, int) {
         for (uint i = 0; i < _buyerAddrToPairIds[buyerAddr].length; i++) {
             uint pairId = _buyerAddrToPairIds[buyerAddr][i];
             OrderPair memory op = _matchedPair[pairId];
             if (op.buyOrder.id == orderId) {
-                return (op.sellOrder.trader, pairId);
+                return (op.sellOrder.trader, int(pairId));
             }
         }
-        // to be confirmed
+        // find nothing
         return (address(0), -1);
     }
 
-    function findMatchedBuyer(uint orderId, address sellerAddr) public view returns (address, uint) {
+    function findMatchedBuyer(uint orderId, address sellerAddr) public view returns (address, int) {
         for (uint i = 0; i < _sellerAddrToPairIds[sellerAddr].length; i++) {
             uint pairId = _sellerAddrToPairIds[sellerAddr][i];
             OrderPair memory op = _matchedPair[pairId];
             if (op.sellOrder.id == orderId) {
-                return (op.buyOrder.trader, pairId);
+                return (op.buyOrder.trader, int(pairId));
             }
         }
-        // to be confirmed
+        // find nothing
         return (address(0), -1);
     }
 
@@ -115,42 +118,45 @@ contract Bucketization is Marketplace, RangeProof {
     }
 
     // 3.17-3.22
-    function confirmRound(uint fees, uint proof, uint pairId) public payable {
-        address buyer = msg.sender;
+    function confirmRound(uint256 r1, uint256 r2, uint256 fees, uint256 proofX, uint256 proofY, uint pairId, uint256 hx, uint256 hy) public payable {
         OrderPair memory pair = _matchedPair[pairId];
 
         // TODO check pair
 
-        uint feeComm = _pc.subCommitment(pair.buyOrder.rateComm, pair.sellOrder.rateComm);
-        require(feeComm == proof, "B: Invalid fee comm");
-        require(_pc.verify(fees, feeComm), "B: Invalid fee comm");
-        debit(pair.buyOrder.trader, pair.buyOrder.rateComm);
-        credit(pair.sellOrder.trader, pair.sellOrder.rateComm);
-        _marketplaceAccount.transfer(fees);
+        uint256 r3;
+        uint256 feeCommX;
+        uint256 feeCommY;
+        (r3, feeCommX, feeCommY) = _pc.subCommitment(r1, pair.buyOrder.rateCommX, pair.buyOrder.rateCommY, r2, pair.sellOrder.rateCommX, pair.sellOrder.rateCommY);
+        require(feeCommX == proofX && feeCommY == proofY, "B: Invalid fee comm");
+        require(_pc.verifyWithH(r3, fees, feeCommX, feeCommY, hx, hy), "B: Invalid fee comm");
+        debit(pair.buyOrder.trader, r1, pair.buyOrder.rateCommX, pair.buyOrder.rateCommY);
+        credit(pair.sellOrder.trader, r2, pair.sellOrder.rateCommX, pair.sellOrder.rateCommY);
+        
+        // _marketplaceAccount.transfer(fees);
 
-        delete _matchedPair[pairId];
-        uint len = _buyerAddrToPairIds[msg.sender].length - 1;
-        for (uint i = 0; i < len; i ++) {
-            if (pairId == _buyerAddrToPairIds[msg.sender][i]) {
-               _buyerAddrToPairIds[msg.sender][i] = _buyerAddrToPairIds[msg.sender][len];
-            }
-        }
-        _buyerAddrToPairIds[msg.sender].pop();
+        // delete _matchedPair[pairId];
+        // uint len = _buyerAddrToPairIds[msg.sender].length - 1;
+        // for (uint i = 0; i < len; i ++) {
+        //     if (pairId == _buyerAddrToPairIds[msg.sender][i]) {
+        //        _buyerAddrToPairIds[msg.sender][i] = _buyerAddrToPairIds[msg.sender][len];
+        //     }
+        // }
+        // _buyerAddrToPairIds[msg.sender].pop();
 
-        len = _sellerAddrToPairIds[msg.sender].length - 1;
-        for (uint i = 0; i < len; i ++) {
-            if (pairId == _sellerAddrToPairIds[msg.sender][i]) {
-               _sellerAddrToPairIds[msg.sender][i] = _sellerAddrToPairIds[msg.sender][len];
-            }
-        }
-        _sellerAddrToPairIds[msg.sender].pop();
+        // len = _sellerAddrToPairIds[msg.sender].length - 1;
+        // for (uint i = 0; i < len; i ++) {
+        //     if (pairId == _sellerAddrToPairIds[msg.sender][i]) {
+        //        _sellerAddrToPairIds[msg.sender][i] = _sellerAddrToPairIds[msg.sender][len];
+        //     }
+        // }
+        // _sellerAddrToPairIds[msg.sender].pop();
     }
 
-    function debit(address trader, uint comm) internal payable {
-        _credits[trader] = _pc.subCommitment(_credits[trader], comm);
+    function debit(address trader, uint256 r, uint256 commX, uint256 commY) internal {
+        (_credits[trader][0], _credits[trader][1], _credits[trader][2]) = _pc.subCommitment(_credits[trader][0], _credits[trader][1], _credits[trader][2], r, commX, commY);
     }
 
-    function credit(address trader, uint comm) internal payable {
-        _credits[trader] = _pc.addCommitment(_credits[trader], comm);
+    function credit(address trader, uint256 r, uint256 commX, uint256 commY) internal {
+        (_credits[trader][0], _credits[trader][1], _credits[trader][2]) = _pc.addCommitment(_credits[trader][0], _credits[trader][1], _credits[trader][2], r, commX, commY);
     }
 }

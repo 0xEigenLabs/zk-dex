@@ -687,10 +687,9 @@
     "fastfile" "0.0.19"
     "ffjavascript" "^0.2.48"
 
-"@ieigen/pedersencommitment@0.0.3":
-  "integrity" "sha512-O6xh/5GukZyP7jD7DgUZESzvUPQCjY3cpORfh7NsQBs/RhTnZSKnLRS+BIZDAYTe3QT6R8kYBsbE/gTU+hSh2g=="
-  "resolved" "https://registry.npmjs.org/@ieigen/pedersencommitment/-/pedersencommitment-0.0.3.tgz"
-  "version" "0.0.3"
+"@ieigen/anonmisc@file:../anonmisc":
+  "resolved" "file:../anonmisc"
+  "version" "0.0.1"
   dependencies:
     "@mattrglobal/node-bbs-signatures" "^0.13.0"
     "@openzeppelin/contracts" "^4.5.0"
