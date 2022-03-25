@@ -16,7 +16,7 @@ template PedersenComm (n) {
     greater.in[0] <== m;
     greater.in[1] <== a;
 
-    1 === greater.out;s
+    1 === greater.out;
 }
 
 component main { public[a, b] } = RangeProof(252);

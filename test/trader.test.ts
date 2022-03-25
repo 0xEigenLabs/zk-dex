@@ -2,6 +2,7 @@ const { waffle, ethers}  = require("hardhat");
 import { Wallet, ContractFactory, BigNumber, BigNumberish } from "ethers";
 import { expect } from "chai";
 import { commitmentForBlindSignRequest } from '@mattrglobal/node-bbs-signatures/lib/bbsSignature';
+import { parse } from "dotenv";
 const fs = require("fs");
 const path = require("path");
 var EC = require('elliptic').ec;
@@ -24,6 +25,8 @@ const MarketplaceABI = [
 const BucketizationABI = [
     "function submitOrder(address account, uint256 rateCommX, uint256 rateCommY, uint kind) returns(uint)"
 ]
+
+const MaxBalance = 1000000
 
 let contract
 let marketplace
@@ -69,7 +72,28 @@ function parseProof(proof: any): Proof {
     };
 }
 
-async function generateProof(l, r, m) {
+async function generateRangeProof(l, r, m) {
+    let input = {
+        "a": l,
+        "b": r,
+        "m": m
+    }
+    let wasm = path.join(__dirname, "../circuit/range_proof_js", "range_proof.wasm");
+    let zkey = path.join(__dirname, "../circuit/range_proof_js", "circuit_final.zkey");
+    let vkeypath = path.join(__dirname, "../circuit/range_proof_js", "verification_key.json");
+    const wc = require("../circuit/range_proof_js/witness_calculator");
+    const buffer = fs.readFileSync(wasm);
+    const witnessCalculator = await wc(buffer);
+
+    let witnessBuffer = await witnessCalculator.calculateWTNSBin(
+        input,
+        0
+    );
+    var {proof, publicSignals} = await snarkjs.groth16.prove(zkey, witnessBuffer);
+    return proof;
+}
+
+async function generatePedersenProof() {
     let input = {
         "a": l,
         "b": r,
@@ -168,6 +192,9 @@ describe.only("zkDEX test", () => {
         // console.log("buy 1 rateComm x,y:")
         // console.log(x)
         // console.log(y)
+        // we can do the check in the backend
+        // let proof = generateRangeProof(0, buyer1Balance, buyRate1) // generate proof: 0 <= buyerRate1 < buyer1Balance, buyRate1 is private and buyer1Balace is public
+        // const {a, b, c} = parseProof(proof)
         buyOrder1Id = await bucketization.callStatic.submitOrder(buyer1.address, x, y, 0)
         await bucketization.submitOrder(buyer1.address, x, y, 0)
         expect(buyOrder1Id).eq(1)
@@ -267,7 +294,7 @@ describe.only("zkDEX test", () => {
         // var {proof, publicSignals} = await snarkjs.groth16.prove(zkey, witnessBuffer);
         // var {a, b, c} = parseProof(proof);
 
-        let proof = generateProof(buyer1Bucket[0], buyer1Bucket[0].add(buyer1Bucket[1]), buyRate1)
+        let proof = generateRangeProof(buyer1Bucket[0], buyer1Bucket[0].add(buyer1Bucket[1]), buyRate1)
         var {a, b, c} = parseProof(proof);
         
         let tx = await bucketization.attachOrderBook(buyOrder1Id, buyer1Bucket, a, b, c);
@@ -287,9 +314,9 @@ describe.only("zkDEX test", () => {
         // var {proof, publicSignals} = await snarkjs.groth16.prove(zkey, witnessBuffer);
         // var {a, b, c} = parseProof(proof);
 
-        proof = generateProof(seller1Bucket[0], seller1Bucket[0].add(seller1Bucket[1]), sellRate1)
+        proof = generateRangeProof(seller1Bucket[0], seller1Bucket[0].add(seller1Bucket[1]), sellRate1)
         var {a, b, c} = parseProof(proof);
-        
+
         tx = await bucketization.attachOrderBook(sellOrder1Id, seller1Bucket, a, b, c);
         await tx.wait()
     })
@@ -342,5 +369,9 @@ describe.only("zkDEX test", () => {
         // let seller1BalanceAfter = await provider.getBalance(seller1.address)
         // expect(buyer1BalanceAfter.add(buyRate1)).eq(buyer1BalanceBefore)
         // expect(seller1BalanceAfter).eq(seller1BalanceBefore.add(sellRate1))
+    })
+
+    it("withdraw test", async function () {
+
     })
 });
