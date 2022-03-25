@@ -15,7 +15,10 @@ contract Bucketization is Marketplace, RangeProof {
 
     PedersenCommitment _pc;
 
+    uint256 constant private restrictedDealTime = 2;
+
     mapping (address => uint256[3]) private _credits; // array[0] => r || array[1] => X || array[2] => Y
+    mapping (address => uint256) private _dealTimes;
 
     struct UnmatchedOrder {
         uint id;
@@ -40,8 +43,26 @@ contract Bucketization is Marketplace, RangeProof {
     mapping (address => uint[]) private _buyerAddrToPairIds; //
     mapping (address => uint[]) private _sellerAddrToPairIds;
 
+    function deposit(address account, uint256 r, uint256 commX, uint256 commY) public {
+        (_credits[account][0], _credits[account][1], _credits[account][2]) = _pc.addCommitment(_credits[account][0], _credits[account][1], _credits[account][2], r, commX, commY);
+    }
+
+    function withdraw(address trader, uint256 commX, uint256 commY, uint v) public payable {
+        require(msg.sender == trader, "B: invalid withdraw address");
+        // Restrict users to withdraw cash after a certain number of transactions.
+        require(_dealTimes[trader] > restrictedDealTime, "B: not enough deals");
+        require(_credits[trader][1] > 0 && _credits[trader][2] > 0, "B: account has no assets");
+        require(commX == _credits[trader][1] && commY == _credits[trader][2], "B: invalid credit commitmet");
+        payable(trader).transfer(v);
+        delete _credits[trader];
+    }
+
     // 3.1-3.4
-    function submitOrder(address account, uint256 rateCommX, uint256 rateCommY, uint kind) public returns(uint) {
+    function submitOrder(address account, uint256 rateCommX, uint256 rateCommY, uint kind, uint256 upbound) public returns(uint) {
+        // TODO check credit is positive, the trader needs to submit a range proof to proof his credit is enough to submit this order
+        // if (kind == 0) {
+        //     require(verify(a, b, c, input), "B: not enough credit");
+        // }
         _orderId.increment();
         uint256 id = _orderId.current();
         _orderIdToOrderIdx[id] = _unmatchedOrders.length;
@@ -131,6 +152,8 @@ contract Bucketization is Marketplace, RangeProof {
         require(_pc.verifyWithH(r3, fees, feeCommX, feeCommY, hx, hy), "B: Invalid fee comm");
         debit(pair.buyOrder.trader, r1, pair.buyOrder.rateCommX, pair.buyOrder.rateCommY);
         credit(pair.sellOrder.trader, r2, pair.sellOrder.rateCommX, pair.sellOrder.rateCommY);
+        _dealTimes[pair.buyOrder.trader] += 1;
+        _dealTimes[pair.sellOrder.trader] += 1;
         
         // _marketplaceAccount.transfer(fees);
 

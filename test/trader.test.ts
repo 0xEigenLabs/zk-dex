@@ -47,6 +47,10 @@ let seller1Bucket
 let buyer2Bucket
 let seller2Bucket
 let pairId
+let buyer1Balance = 100
+let seller1Balance = 100
+let buyer2Balance = 100
+let seller2Balance = 100
 
 interface Proof {
     a: [BigNumberish, BigNumberish];
@@ -65,6 +69,26 @@ function parseProof(proof: any): Proof {
     };
 }
 
+async function generateProof(l, r, m) {
+    let input = {
+        "a": l,
+        "b": r,
+        "m": m
+    }
+    let wasm = path.join(__dirname, "../circuit/range_proof_js", "range_proof.wasm");
+    let zkey = path.join(__dirname, "../circuit/range_proof_js", "circuit_final.zkey");
+    let vkeypath = path.join(__dirname, "../circuit/range_proof_js", "verification_key.json");
+    const wc = require("../circuit/range_proof_js/witness_calculator");
+    const buffer = fs.readFileSync(wasm);
+    const witnessCalculator = await wc(buffer);
+
+    let witnessBuffer = await witnessCalculator.calculateWTNSBin(
+        input,
+        0
+    );
+    var {proof, publicSignals} = await snarkjs.groth16.prove(zkey, witnessBuffer);
+    return proof;
+}
 
 describe.only("zkDEX test", () => {
     before(async () => {
@@ -76,6 +100,11 @@ describe.only("zkDEX test", () => {
         // seller2 = Wallet.createRandom().connect(provider)
         // marketplace = Wallet.createRandom().connect(provider)
         console.log("buyer1 address:", buyer1.address)
+        // let balance = await provider.getBalance(buyer1.address)
+        // let etherString = ethers.utils.formatEther(balance)
+        // let etherNumber = Number(etherString)
+        // console.log(etherNumber)
+        // console.log("buyer balance:", etherString)
         console.log("seller1 address:", seller1.address)
         console.log("buyer2 address:", buyer2.address)
         console.log("seller2 address:", seller2.address)
@@ -93,7 +122,40 @@ describe.only("zkDEX test", () => {
     })
 
     beforeEach(async function () {
+    })
 
+    it("deposit test", async function () {
+        let r = pc.generateRandom()
+        let balanceComm = pc.commitTo(H, r, buyer1Balance)
+        let x = BigNumber.from(balanceComm.getX().toString())
+        let y = BigNumber.from(balanceComm.getY().toString())
+        await (await buyer1.sendTransaction({to: bucketization.address, value: ethers.utils.parseEther("100")})).wait()
+        let tx = await bucketization.deposit(buyer1.addresss, r, x, y)
+        await tx.wait()
+
+        r = pc.generateRandom()
+        balanceComm = pc.commitTo(H, r, seller1Balance)
+        x = BigNumber.from(balanceComm.getX().toString())
+        y = BigNumber.from(balanceComm.getY().toString())
+        await (await seller1.sendTransaction({to: bucketization.address, value: ethers.utils.parseEther("100")})).wait()
+        tx = await bucketization.deposit(seller1.addresss, r, x, y)
+        await tx.wait()
+
+        r = pc.generateRandom()
+        balanceComm = pc.commitTo(H, r, buyer2Balance)
+        x = BigNumber.from(balanceComm.getX().toString())
+        y = BigNumber.from(balanceComm.getY().toString())
+        await (await buyer2.sendTransaction({to: bucketization.address, value: ethers.utils.parseEther("100")})).wait()
+        tx = await bucketization.deposit(buyer2.addresss, r, x, y)
+        await tx.wait()
+
+        r = pc.generateRandom()
+        balanceComm = pc.commitTo(H, r, seller2Balance)
+        x = BigNumber.from(balanceComm.getX().toString())
+        y = BigNumber.from(balanceComm.getY().toString())
+        await (await seller2.sendTransaction({to: bucketization.address, value: ethers.utils.parseEther("100")})).wait()
+        tx = await bucketization.deposit(seller2.addresss, r, x, y)
+        await tx.wait()
     })
 
     it("submitOrder test", async function () {
@@ -186,40 +248,46 @@ describe.only("zkDEX test", () => {
 
     it("generate proof and send to marketplace", async function () {
         // buyer1 generate range proof and then send to marketplace
-        let buyer1Input = {
-            "a": buyer1Bucket[0],
-            "b": buyer1Bucket[0].add(buyer1Bucket[1]), // we get BigNumber in bucket object, so we can't just use + to add two BigNumbers, or some wired thing happens.
-            "m": buyRate1
-        }
-        let wasm = path.join(__dirname, "../circuit/range_proof_js", "range_proof.wasm");
-        let zkey = path.join(__dirname, "../circuit/range_proof_js", "circuit_final.zkey");
-        let vkeypath = path.join(__dirname, "../circuit/range_proof_js", "verification_key.json");
-        const wc = require("../circuit/range_proof_js/witness_calculator");
-        const buffer = fs.readFileSync(wasm);
-        const witnessCalculator = await wc(buffer);
+        // let buyer1Input = {
+        //     "a": buyer1Bucket[0],
+        //     "b": buyer1Bucket[0].add(buyer1Bucket[1]), // we get BigNumber in bucket object, so we can't just use + to add two BigNumbers, or some wired thing happens.
+        //     "m": buyRate1
+        // }
+        // let wasm = path.join(__dirname, "../circuit/range_proof_js", "range_proof.wasm");
+        // let zkey = path.join(__dirname, "../circuit/range_proof_js", "circuit_final.zkey");
+        // let vkeypath = path.join(__dirname, "../circuit/range_proof_js", "verification_key.json");
+        // const wc = require("../circuit/range_proof_js/witness_calculator");
+        // const buffer = fs.readFileSync(wasm);
+        // const witnessCalculator = await wc(buffer);
 
-        let witnessBuffer = await witnessCalculator.calculateWTNSBin(
-            buyer1Input,
-            0
-        );
-        var {proof, publicSignals} = await snarkjs.groth16.prove(zkey, witnessBuffer);
+        // let witnessBuffer = await witnessCalculator.calculateWTNSBin(
+        //     buyer1Input,
+        //     0
+        // );
+        // var {proof, publicSignals} = await snarkjs.groth16.prove(zkey, witnessBuffer);
+        // var {a, b, c} = parseProof(proof);
+
+        let proof = generateProof(buyer1Bucket[0], buyer1Bucket[0].add(buyer1Bucket[1]), buyRate1)
         var {a, b, c} = parseProof(proof);
         
         let tx = await bucketization.attachOrderBook(buyOrder1Id, buyer1Bucket, a, b, c);
         await tx.wait()
 
         // seller1 generate range proof and then send to marketplace
-        let seller1Input = {
-            "a": seller1Bucket[0],
-            "b": seller1Bucket[0].add(seller1Bucket[1]),
-            "m": sellRate1
-        }
+        // let seller1Input = {
+        //     "a": seller1Bucket[0],
+        //     "b": seller1Bucket[0].add(seller1Bucket[1]),
+        //     "m": sellRate1
+        // }
 
-        witnessBuffer = await witnessCalculator.calculateWTNSBin(
-            seller1Input,
-            0
-        );
-        var {proof, publicSignals} = await snarkjs.groth16.prove(zkey, witnessBuffer);
+        // witnessBuffer = await witnessCalculator.calculateWTNSBin(
+        //     seller1Input,
+        //     0
+        // );
+        // var {proof, publicSignals} = await snarkjs.groth16.prove(zkey, witnessBuffer);
+        // var {a, b, c} = parseProof(proof);
+
+        proof = generateProof(seller1Bucket[0], seller1Bucket[0].add(seller1Bucket[1]), sellRate1)
         var {a, b, c} = parseProof(proof);
         
         tx = await bucketization.attachOrderBook(sellOrder1Id, seller1Bucket, a, b, c);
@@ -266,6 +334,9 @@ describe.only("zkDEX test", () => {
         
         let tx = await bucketization.confirmRound(r1, r2, fees, x, y, pairId.toNumber(), hx, hy)
         await tx.wait()
+
+        buyer1Balance -= buyRate1
+        seller1Balance += sellRate1
 
         // let buyer1BalanceAfter = await provider.getBalance(buyer1.address)
         // let seller1BalanceAfter = await provider.getBalance(seller1.address)
