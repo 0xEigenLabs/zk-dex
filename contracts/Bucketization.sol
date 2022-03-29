@@ -50,7 +50,7 @@ contract Bucketization is Marketplace, RangeProof {
     function withdraw(address trader, uint256 commX, uint256 commY, uint v) public payable {
         require(msg.sender == trader, "B: invalid withdraw address");
         // Restrict users to withdraw cash after a certain number of transactions.
-        require(_dealTimes[trader] > restrictedDealTime, "B: not enough deals");
+        require(_dealTimes[trader] >= restrictedDealTime, "B: not enough deals");
         require(_credits[trader][1] > 0 && _credits[trader][2] > 0, "B: account has no assets");
         require(commX == _credits[trader][1] && commY == _credits[trader][2], "B: invalid credit commitmet");
         payable(trader).transfer(v);

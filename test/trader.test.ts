@@ -93,26 +93,26 @@ async function generateRangeProof(l, r, m) {
     return proof;
 }
 
-async function generatePedersenProof() {
-    let input = {
-        "a": l,
-        "b": r,
-        "m": m
-    }
-    let wasm = path.join(__dirname, "../circuit/range_proof_js", "range_proof.wasm");
-    let zkey = path.join(__dirname, "../circuit/range_proof_js", "circuit_final.zkey");
-    let vkeypath = path.join(__dirname, "../circuit/range_proof_js", "verification_key.json");
-    const wc = require("../circuit/range_proof_js/witness_calculator");
-    const buffer = fs.readFileSync(wasm);
-    const witnessCalculator = await wc(buffer);
+// async function generatePedersenProof() {
+//     let input = {
+//         "a": l,
+//         "b": r,
+//         "m": m
+//     }
+//     let wasm = path.join(__dirname, "../circuit/range_proof_js", "range_proof.wasm");
+//     let zkey = path.join(__dirname, "../circuit/range_proof_js", "circuit_final.zkey");
+//     let vkeypath = path.join(__dirname, "../circuit/range_proof_js", "verification_key.json");
+//     const wc = require("../circuit/range_proof_js/witness_calculator");
+//     const buffer = fs.readFileSync(wasm);
+//     const witnessCalculator = await wc(buffer);
 
-    let witnessBuffer = await witnessCalculator.calculateWTNSBin(
-        input,
-        0
-    );
-    var {proof, publicSignals} = await snarkjs.groth16.prove(zkey, witnessBuffer);
-    return proof;
-}
+//     let witnessBuffer = await witnessCalculator.calculateWTNSBin(
+//         input,
+//         0
+//     );
+//     var {proof, publicSignals} = await snarkjs.groth16.prove(zkey, witnessBuffer);
+//     return proof;
+// }
 
 describe.only("zkDEX test", () => {
     before(async () => {
@@ -321,7 +321,7 @@ describe.only("zkDEX test", () => {
         await tx.wait()
     })
 
-    it("matching test", async function () {
+    it("matching1 test", async function () {
         // simulate marketplace matching 
         let tx = await bucketization.tradeRound()
         await tx.wait()
@@ -343,7 +343,7 @@ describe.only("zkDEX test", () => {
 
     // Omit the verification process between buyers and sellers
 
-    it("settlement test", async function () {
+    it("settlement1 test", async function () {
         // Calculate fees
         let fees = buyRate1 - sellRate1
         //console.log(r11.sub(r12).umod(ec.n).toString()) 
@@ -371,7 +371,115 @@ describe.only("zkDEX test", () => {
         // expect(seller1BalanceAfter).eq(seller1BalanceBefore.add(sellRate1))
     })
 
-    it("withdraw test", async function () {
+    it("matching2 test", async function () {
 
+    })
+
+    it("settlement2 test", async function () {
+
+    })
+
+    it("withdraw test", async function () {
+        let r = pc.generateRandom()
+        let buyer1Rate2 = 20
+        let rateComm = pc.commitTo(H, r, buyer1Rate2)
+        let x = BigNumber.from(rateComm.getX().toString())
+        let y = BigNumber.from(rateComm.getY().toString())
+        let buyer1Order2Id = await bucketization.callStatic.submitOrder(buyer1.address, x, y, 0)
+        await bucketization.submitOrder(buyer1.address, x, y, 0)
+
+        // seller1 sends order to marketplace
+        r = pc.generateRandom();
+        rateComm = pc.commitTo(H, r, sellRate1)
+        x = BigNumber.from(rateComm.getX().toString())
+        y = BigNumber.from(rateComm.getY().toString())
+        let seller1Order1Id = await bucketization.callStatic.submitOrder(seller1.address, x, y, 1)
+        await bucketization.submitOrder(seller1.address, x, y, 1)
+
+        // buyer receive buckets from marketplace 
+        let buckets = await marketplace.chooseBuckets()
+        await marketplace.chooseBuckets()
+        //console.log(buckets)
+        var keyArr = Object.keys(buckets)
+        expect(keyArr.length).eq(11)
+
+        // buyer1 and seller1 choose buckets
+        let startValue
+        let width
+        let buyerBucketFound = false
+        let sellerBucketFound = false
+        for (var i = 0; i < 11; i++) {
+            startValue = buckets[i][0].toNumber()
+            width = buckets[i][1].toNumber()
+            if (startValue <= buyRate1 && buyRate1 < startValue + width) {
+                buyer1Bucket = buckets[i]
+                buyerBucketFound = true
+            }
+            if (startValue <= sellRate1 && sellRate1 < startValue + width) {
+                seller1Bucket = buckets[i]
+                sellerBucketFound = true
+            }
+            if (buyerBucketFound && sellerBucketFound) {
+                break
+            }
+        }
+
+        let proof = generateRangeProof(buyer1Bucket[0], buyer1Bucket[0].add(buyer1Bucket[1]), buyRate1)
+        var {a, b, c} = parseProof(proof);
+        
+        let tx = await bucketization.attachOrderBook(buyOrder1Id, buyer1Bucket, a, b, c);
+        await tx.wait()
+
+        proof = generateRangeProof(seller1Bucket[0], seller1Bucket[0].add(seller1Bucket[1]), sellRate1)
+        var {a, b, c} = parseProof(proof);
+
+        tx = await bucketization.attachOrderBook(sellOrder1Id, seller1Bucket, a, b, c);
+        await tx.wait()
+
+        // simulate marketplace matching 
+        tx = await bucketization.tradeRound()
+        await tx.wait()
+
+        // matching 
+        // buyer1 receive matching from marketplace
+        let res = await bucketization.findMatchedSeller(buyOrder1Id, buyer1.address)
+        let matchedSeller = res[0]
+        pairId = res[1]
+        expect(matchedSeller).eq(seller1.address)
+
+        // seller1 receive matching from marketplace
+        res = await bucketization.findMatchedBuyer(sellOrder1Id, seller1.address)
+        let matchedBuyer = res[0]
+        let pairId1 = res[1]
+        expect(matchedBuyer).eq(buyer1.address) 
+
+        expect(pairId).eq(pairId1)
+
+        // settle test
+        // Calculate fees
+        let fees = buyRate1 - sellRate1
+        //console.log(r11.sub(r12).umod(ec.n).toString()) 
+        let feesComm = pc.commitTo(H, r11.sub(r12).umod(ec.n), fees) // notice that umod is a must or sometimes the onchain check won't pass
+        x = BigNumber.from(feesComm.getX().toString())
+        y = BigNumber.from(feesComm.getY().toString())
+        let r1 = BigNumber.from(r11.toString())
+        let r2 = BigNumber.from(r12.toString())
+        let hx = BigNumber.from(H.getX().toString())
+        let hy = BigNumber.from(H.getY().toString())
+
+        // send to the marketplace 
+        // let buyer1BalanceBefore = await provider.getBalance(buyer1.address)
+        // let seller1BalanceBefore = await provider.getBalance(seller1.address)
+        
+        tx = await bucketization.confirmRound(r1, r2, fees, x, y, pairId.toNumber(), hx, hy)
+        await tx.wait()
+
+        buyer1Balance -= buyRate1
+        seller1Balance += sellRate1
+
+        // let buyer1BalanceAfter = await provider.getBalance(buyer1.address)
+        // let seller1BalanceAfter = await provider.getBalance(seller1.address)
+        // expect(buyer1BalanceAfter.add(buyRate1)).eq(buyer1BalanceBefore)
+        // expect(seller1BalanceAfter).eq(seller1BalanceBefore.add(sellRate1))
     })
 });
