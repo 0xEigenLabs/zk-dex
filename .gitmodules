@@ -1,0 +1,6 @@
+[submodule "circomlib"]
+	path = circomlib
+	url = https://github.com/iden3/circomlib.git
+[submodule "circom-ecdsa"]
+	path = circomlib
+	url = https://github.com/0xPARC/circom-ecdsa.git
