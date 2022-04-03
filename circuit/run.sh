@@ -1,6 +1,7 @@
 #!/bin/bash
 set -e
 
+export NODE_OPTIONS=--max_old_space_size=10092
 circuit_name=$1
 base_dir=${circuit_name}_js
 
@@ -13,7 +14,7 @@ node ../../scripts/generate_${circuit_name}.js
 #Prapare phase 1
 node generate_witness.js ${circuit_name}.wasm input.json witness.wtns
 
-snarkjs powersoftau new bn128 16 pot16_0000.ptau -v
+snarkjs powersoftau new bn128 12 pot16_0000.ptau -v
 #snarkjs powersoftau new bn128 12 pot12_0000.ptau -v
 
 snarkjs powersoftau contribute pot16_0000.ptau pot16_0001.ptau --name="First contribution" -v
