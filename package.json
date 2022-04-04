@@ -12,7 +12,7 @@
   "author": "",
   "license": "Apache-2.0",
   "dependencies": {
-    "@ieigen/anonmisc": "^0.0.1",
+    "@ieigen/anonmisc": "^0.0.2",
     "@mattrglobal/node-bbs-signatures": "^0.13.0",
     "@noble/secp256k1": "^1.5.5",
     "@openzeppelin/contracts": "^4.5.0",
