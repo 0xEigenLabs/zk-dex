@@ -1,5 +1,5 @@
 pragma circom 2.0.0;
-include "../circomlib/circuits/comparators.circom";
+include "../node_modules/circomlib/circuits/comparators.circom";
 
 // check if a <= m < b;
 template RangeProof (n) {
