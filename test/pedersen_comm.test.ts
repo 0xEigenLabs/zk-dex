@@ -7,11 +7,18 @@ const snarkjs = require("snarkjs");
 
 const cls = require("circomlibjs");
 
+const secp256k1 = require('@noble/secp256k1')
+const CURVE = secp256k1.CURVE
+const Point = secp256k1.Point
+var G = new Point(CURVE.Gx, CURVE.Gy)
+
 const pc = require("@ieigen/anonmisc/lib/pedersen");
 var H = pc.generateH();
-var EC = require('elliptic').ec;
-var ec = new EC('secp256k1');
-var G = ec.g;
+
+
+// var EC = require('elliptic').ec;
+// var ec = new EC('secp256k1');
+// var G = ec.g;
 
 interface Proof {
     a: [BigNumberish, BigNumberish];
@@ -61,26 +68,26 @@ describe.only("Pedersen Commitment Proof", () => {
     })
 
     it.only("Test pedersen commitment proof should equal", async() => {
-        let r = BigInt(pc.generateRandom())
+        let r = pc.generateRandom()
         let v = BigInt(5)
         var r_array: bigint[] = bigint_to_array(64, 4, r)
         var v_array: bigint[] = bigint_to_array(64, 4, v)
 
-        let x = BigInt(H.getX().toString())
-        let y = BigInt(H.getY().toString())
+        let x = H.x
+        let y = H.y
         var hx_array: bigint[] = bigint_to_array(64, 4, x)
         var hy_array: bigint[] = bigint_to_array(64, 4, y)
         var h = [hx_array, hy_array]
 
-        x = BigInt(G.getX().toString())
-        y = BigInt(G.getY().toString())
+        x = G.x
+        y = G.y
         var gx_array: bigint[] = bigint_to_array(64, 4, x)
         var gy_array: bigint[] = bigint_to_array(64, 4, y)
         var g = [gx_array, gy_array]
         
         let res = pc.commitTo(H, r, v)
-        x = BigInt(res.getX().toString())
-        y = BigInt(res.getY().toString())
+        x = res.x
+        y = res.y
         var comm_x_array: bigint[] = bigint_to_array(64, 4, x)
         var comm_y_array: bigint[] = bigint_to_array(64, 4, y)
         var comm = [comm_x_array, comm_y_array]
@@ -114,26 +121,28 @@ describe.only("Pedersen Commitment Proof", () => {
     })
 
     it("Test pedersen commitment proof should fail", async() => {
-        let r = BigInt(pc.generateRandom())
+        let r = pc.generateRandom()
         let v = BigInt(5)
+        let diff_v = BigInt(6)
         var r_array: bigint[] = bigint_to_array(64, 4, r)
         var v_array: bigint[] = bigint_to_array(64, 4, v)
+        var diff_v_array: bigint[] = bigint_to_array(64, 4, diff_v)
 
-        let x = BigInt(H.getX().toString())
-        let y = BigInt(H.getY().toString())
+        let x = H.x
+        let y = H.y
         var hx_array: bigint[] = bigint_to_array(64, 4, x)
         var hy_array: bigint[] = bigint_to_array(64, 4, y)
         var h = [hx_array, hy_array]
 
-        x = BigInt(G.getX().toString())
-        y = BigInt(G.getY().toString())
+        x = G.x
+        y = G.y
         var gx_array: bigint[] = bigint_to_array(64, 4, x)
         var gy_array: bigint[] = bigint_to_array(64, 4, y)
         var g = [gx_array, gy_array]
         
         let res = pc.commitTo(H, r, v)
-        x = BigInt(res.getX().toString())
-        y = BigInt(res.getY().toString())
+        x = res.x
+        y = res.y
         var comm_x_array: bigint[] = bigint_to_array(64, 4, x)
         var comm_y_array: bigint[] = bigint_to_array(64, 4, y)
         var comm = [comm_x_array, comm_y_array]
@@ -162,7 +171,7 @@ describe.only("Pedersen Commitment Proof", () => {
 
         expect(await contract.check(
             a, b, c,
-            [1, 20]
-        )).to.eq(true)
+            [diff_v_array, h, g, comm]
+        )).to.eq(false)
     })
 })
