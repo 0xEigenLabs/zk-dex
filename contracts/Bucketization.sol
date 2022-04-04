@@ -71,12 +71,14 @@ contract Bucketization is Marketplace, RangeProof {
     }
 
     // 3.10-3.12
-    function attachOrderBook(uint id, Bucket memory bucket, uint[2] memory a, uint[2][2] memory b, uint[2] memory c) public {
+    function attachOrderBook(uint id, Bucket memory bucket, bytes memory proof) public {
         UnmatchedOrder memory order = _unmatchedOrders[_orderIdToOrderIdx[id]];
-        uint[2] memory input = [bucket.startValue, bucket.startValue + bucket.width];
+        uint[] memory input = new uint[](2);
+        input[0] = bucket.startValue;
+        input[1] = bucket.startValue + bucket.width;
 
         // check the bucket including the rateComm
-        require(verifyRangeProof(a, b, c, input), "B: Invalid range proof");
+        require(verifyRangeProof(proof, input), "B: Invalid range proof");
 
         // TODO check the rateComm is exactly from order id
 
