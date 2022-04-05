@@ -6,7 +6,7 @@
   "scripts": {
     "lint": "./node_modules/.bin/eslint src --ext .ts",
     "clean": "rm -rf build dist typechain cache artifacts",
-    "build": "hardhat compile",
+    "build": "hardhat compile && ./node_modules/typescript/bin/tsc",
     "test": "yarn build && npx hardhat test"
   },
   "author": "",
