@@ -89,21 +89,21 @@ contract Marketplace {
     }
 
     function sort(Order[] memory orderBook) public returns (Order[] memory) {
-        quickSort(orderBook, 0, orderBook.length - 1);
+        quickSort(orderBook, 0, int(orderBook.length - 1));
         return orderBook;
     }
   
-    function quickSort(Order[] memory orderBook, uint left, uint right) internal {
-        uint i = left;
-        uint j = right;
-        if (i == j) return;
+    function quickSort(Order[] memory orderBook, int left, int right) internal {
+        int i = left;
+        int j = right;
+        if (i >= j) return;
         
-        uint pivot = orderBook[left + (right - left) / 2].bucket.startValue;
+        uint pivot = orderBook[uint(left + (right - left) / 2)].bucket.startValue;
         while (i <= j) {
-            while (orderBook[i].bucket.startValue < pivot) i++;
-            while (pivot < orderBook[j].bucket.startValue) j--;
+            while (orderBook[uint(i)].bucket.startValue < pivot) i++;
+            while (pivot < orderBook[uint(j)].bucket.startValue) j--;
             if (i <= j) {
-                (orderBook[i], orderBook[j]) = (orderBook[j], orderBook[i]);
+                (orderBook[uint(i)], orderBook[uint(j)]) = (orderBook[uint(j)], orderBook[uint(i)]);
                 i++;
                 j--;
             }

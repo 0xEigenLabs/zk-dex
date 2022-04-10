@@ -5,6 +5,11 @@ cache
 artifacts
 typechain
 circuit/range_proof_js
+circuit/pedersen_bjj_js
+dist
+
+circuit/proof.json
+circuit/public.json
 
 node_modules
 .env
@@ -15,3 +20,6 @@ typechain
 #Hardhat files
 cache
 artifacts
+
+package-lock.json
+yarn.lock

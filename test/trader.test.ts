@@ -1,30 +1,17 @@
-const { waffle, ethers}  = require("hardhat");
 import { Wallet, ContractFactory, BigNumber, BigNumberish } from "ethers";
 import { expect } from "chai";
-import { commitmentForBlindSignRequest } from '@mattrglobal/node-bbs-signatures/lib/bbsSignature';
+import {buildBabyjub} from "circomlibjs";
+
+const { waffle, ethers}  = require("hardhat");
 const fs = require("fs");
 const path = require("path");
-var EC = require('elliptic').ec;
-var ec = new EC('secp256k1');
-
 const hre = require("hardhat");
-
-const provider = waffle.provider
-
 const pc = require("@ieigen/anonmisc/lib/pedersen");
-var H = pc.generateH();
-
 const snarkjs = require("snarkjs");
+const babyJubOrder = BigInt("21888242871839275222246405745257275088614511777268538073601725287587578984328")
 
-
-const MarketplaceABI = [
-    "funciton chooseBuckets()"
-]
-
-const BucketizationABI = [
-    "function submitOrder(address account, uint256 rateCommX, uint256 rateCommY, uint kind) returns(uint)"
-]
-
+let H
+let babyjub
 let contract
 let marketplace
 let bucketization
@@ -38,6 +25,8 @@ let r21
 let r22
 let buyRate1 = 10;
 let sellRate1 = 9;
+let buyRate2 = 20;
+let sellRate2 = 18;
 let buyOrder1Id
 let sellOrder1Id
 let buyOrder2Id
@@ -46,7 +35,14 @@ let buyer1Bucket
 let seller1Bucket
 let buyer2Bucket
 let seller2Bucket
-let pairId
+let pairId1
+let pairId2
+let buyer1Balance = 100
+let seller1Balance = 100
+let buyer2Balance = 100
+let seller2Balance = 100
+let depositBuyer1Random
+let depositBuyer1r
 
 interface Proof {
     a: [BigNumberish, BigNumberish];
@@ -65,9 +61,76 @@ function parseProof(proof: any): Proof {
     };
 }
 
+async function generateRangeProof(l, r, m) {
+    let input = {
+        "a": l,
+        "b": r,
+        "m": m
+    }
+    let wasm = path.join(__dirname, "../circuit/range_proof_js", "range_proof.wasm");
+    let zkey = path.join(__dirname, "../circuit/range_proof_js", "circuit_final.zkey");
+    let vkeypath = path.join(__dirname, "../circuit/range_proof_js", "verification_key.json");
+    const wc = require("../circuit/range_proof_js/witness_calculator");
+    const buffer = fs.readFileSync(wasm);
+    const witnessCalculator = await wc(buffer);
 
-describe.only("zkDEX test", () => {
+    let witnessBuffer = await witnessCalculator.calculateWTNSBin(
+        input,
+        0
+    );
+    var {proof, publicSignals} = await snarkjs.groth16.prove(zkey, witnessBuffer);
+    return proof;
+}
+
+function choooseBuckets(buckets, buyRate, sellRate) {
+    let startValue
+    let width
+    let buyerBucketFound = false
+    let sellerBucketFound = false
+    let buyerBucket
+    let sellerBucket
+    for (var i = 0; i < 11; i++) {
+        startValue = buckets[i][0].toNumber()
+        width = buckets[i][1].toNumber()
+        if (startValue <= buyRate && buyRate < startValue + width) {
+            buyerBucket = buckets[i]
+            buyerBucketFound = true
+        }
+        if (startValue <= sellRate && sellRate < startValue + width) {
+            sellerBucket = buckets[i]
+            sellerBucketFound = true
+        }
+        if (buyerBucketFound && sellerBucketFound) {
+            break
+        }
+    }
+    return {b:buyerBucket, s:sellerBucket}
+}
+
+async function generatePedersenProof(r, v) {
+    let input = {
+        "in": [r, v]
+    }
+
+    let wasm = path.join(__dirname, "../circuit/pedersen_bjj_js", "pedersen_bjj.wasm");
+    let zkey = path.join(__dirname, "../circuit/pedersen_bjj_js", "circuit_final.zkey");
+    let vkeypath = path.join(__dirname, "../circuit/pedersen_bjj_js", "verification_key.json");
+    const wc = require("../circuit/pedersen_bjj_js/witness_calculator");
+    const buffer = fs.readFileSync(wasm);
+    let circuit = await wc(buffer);
+    const witnessBuffer = await circuit.calculateWTNSBin(
+        input,
+        0
+    );
+    const { proof, publicSignals } = await snarkjs.groth16.prove(zkey, witnessBuffer);
+    console.log("publicSignals:", publicSignals)
+    return {proof, publicSignals}
+}
+
+describe("zkDEX test", () => {
     before(async () => {
+        babyjub = await buildBabyjub();
+        H = await pc.generateH();
         [buyer1, seller1, buyer2, seller2, marketplace] = await hre.ethers.getSigners();
 
         // buyer1 = Wallet.createRandom().connect(provider)
@@ -87,142 +150,139 @@ describe.only("zkDEX test", () => {
         console.log("marketplace contract address:", marketplace.address)
 
         contract = await ethers.getContractFactory("Bucketization");
-        bucketization = await contract.deploy(marketplace.address)
+        bucketization = await contract.deploy()
         await bucketization.deployed()
         console.log("bucketization contract address:", bucketization.address)        
     })
 
     beforeEach(async function () {
+    })
 
+    it("deposit test", async function () {
+        // buyer1 deposits 100 Ether to contract address
+        depositBuyer1r = await pc.generateRandom()
+        depositBuyer1Random = BigNumber.from(depositBuyer1r.toString())
+        let balanceComm = await pc.commitTo(H, depositBuyer1r, buyer1Balance)
+        let x = babyjub.F.toString(balanceComm[0])
+        let y = babyjub.F.toString(balanceComm[1])
+        // This could expose the buyer1's balance
+        let res = await bucketization.transferToMarketplace({ value: ethers.utils.parseEther("100") })
+        await res.wait()
+        //await (await buyer1.sendTransaction({to: bucketization.getAddress(), value: ethers.utils.parseEther("100")})).wait()
+        let tx = await bucketization.deposit(buyer1.address, depositBuyer1Random, x, y)
+        await tx.wait()
+
+        // seller1 deposits 100 Ether to contract address
+        let r = await pc.generateRandom()
+        balanceComm = await pc.commitTo(H, r, seller1Balance)
+        x = babyjub.F.toString(balanceComm[0])
+        y = babyjub.F.toString(balanceComm[1])
+        //await (await seller1.sendTransaction({to: bucketization.address, value: ethers.utils.parseEther("100")})).wait()
+        tx = await bucketization.deposit(seller1.address, r, x, y)
+        await tx.wait()
+
+        // buyer2 deposits 100 Ether to contract address
+        r = await pc.generateRandom()
+        balanceComm = await pc.commitTo(H, r, buyer2Balance)
+        x = babyjub.F.toString(balanceComm[0])
+        y = babyjub.F.toString(balanceComm[1])
+        //await (await buyer2.sendTransaction({to: bucketization.address, value: ethers.utils.parseEther("100")})).wait()
+        tx = await bucketization.deposit(buyer2.address, r, x, y)
+        await tx.wait()
+
+        // seller2 deposits 100 Ether to contract address
+        r = await pc.generateRandom()
+        balanceComm = await pc.commitTo(H, r, seller2Balance)
+        x = babyjub.F.toString(balanceComm[0])
+        y = babyjub.F.toString(balanceComm[1])
+        //await (await seller2.sendTransaction({to: bucketization.address, value: ethers.utils.parseEther("100")})).wait()
+        tx = await bucketization.deposit(seller2.address, r, x, y)
+        await tx.wait()
     })
 
     it("submitOrder test", async function () {
         // buyer1 sends order to marketplace
-        r11 = pc.generateRandom();
-        let rateComm = pc.commitTo(H, r11, buyRate1)
-        //console.dir(rateComm)
-        let x = BigNumber.from(rateComm.getX().toString())
-        let y = BigNumber.from(rateComm.getY().toString())
-        // console.log("buy 1 rateComm x,y:")
-        // console.log(x)
-        // console.log(y)
+        r11 = await pc.generateRandom();
+        let rateComm = await pc.commitTo(H, r11, buyRate1)
+        let x = babyjub.F.toString(rateComm[0])
+        let y = babyjub.F.toString(rateComm[1])
+        console.log("buy 1 rateComm x,y:")
+        console.log(x)
+        console.log(y)
+        // make sure the trader has enough balance to submit order, we can do the check in the backend
+        // let proof = generateRangeProof(0, buyer1Balance, buyRate1) // generate proof: 0 <= buyerRate1 < buyer1Balance, buyRate1 is private and buyer1Balace is public
+        // const {a, b, c} = parseProof(proof)
         buyOrder1Id = await bucketization.callStatic.submitOrder(buyer1.address, x, y, 0)
         await bucketization.submitOrder(buyer1.address, x, y, 0)
         expect(buyOrder1Id).eq(1)
 
         // seller1 sends order to marketplace
-        r12 = pc.generateRandom();
-        rateComm = pc.commitTo(H, r12, sellRate1)
-        //console.dir(rateComm)
-        x = BigNumber.from(rateComm.getX().toString())
-        y = BigNumber.from(rateComm.getY().toString())
-        // console.log("sell 1 rateComm x,y:")
-        // console.log(x)
-        // console.log(y)
+        r12 = await pc.generateRandom();
+        rateComm = await pc.commitTo(H, r12, sellRate1)
+        x = babyjub.F.toString(rateComm[0])
+        y = babyjub.F.toString(rateComm[1])
         sellOrder1Id = await bucketization.callStatic.submitOrder(seller1.address, x, y, 1)
         await bucketization.submitOrder(seller1.address, x, y, 1)
         expect(sellOrder1Id).eq(2)
 
         // buyer2 sends order to marketplace
-        let buyRate2 = 20;
-        r21 = pc.generateRandom();
-        rateComm = pc.commitTo(H, r21, buyRate2)
-        //console.dir(rateComm)
-        x = BigNumber.from(rateComm.getX().toString())
-        y = BigNumber.from(rateComm.getY().toString())
-        // console.log("buy 2 rateComm x,y:")
-        // console.log(x)
-        // console.log(y)
+        r21 = await pc.generateRandom();
+        rateComm = await pc.commitTo(H, r21, buyRate2)
+        x = babyjub.F.toString(rateComm[0])
+        y = babyjub.F.toString(rateComm[1])
         buyOrder2Id = await bucketization.callStatic.submitOrder(buyer2.address, x, y, 0)
         await bucketization.submitOrder(buyer2.address, x, y, 0)
         expect(buyOrder2Id).eq(3) 
 
         // seller2 sends order to marketplace
-        let sellRate2 = 18;
-        r22 = pc.generateRandom();
-        rateComm = pc.commitTo(H, r22, sellRate2)
-        //console.dir(rateComm)
-        x = BigNumber.from(rateComm.getX().toString())
-        y = BigNumber.from(rateComm.getY().toString())
-        // console.log("sell 1 rateComm x,y:")
-        // console.log(x)
-        // console.log(y)
+        r22 = await pc.generateRandom();
+        rateComm = await pc.commitTo(H, r22, sellRate2)
+        x = babyjub.F.toString(rateComm[0])
+        y = babyjub.F.toString(rateComm[1])
         sellOrder2Id = await bucketization.callStatic.submitOrder(seller2.address, x, y, 1)
         await bucketization.submitOrder(seller2.address, x, y, 1)
         expect(sellOrder2Id).eq(4)
     })
 
-    it("receive buckets from marketplace", async function () {
+    it("receive buckets from marketplace and send generated proof to marketplace", async function () {
         // buyer receive buckets from marketplace 
         let buckets = await marketplace.chooseBuckets()
         await marketplace.chooseBuckets()
-        //console.log(buckets)
         var keyArr = Object.keys(buckets)
         expect(keyArr.length).eq(11)
 
         // buyer1 and seller1 choose buckets
-        let startValue
-        let width
-        let buyerBucketFound = false
-        let sellerBucketFound = false
-        for (var i = 0; i < 11; i++) {
-            startValue = buckets[i][0].toNumber()
-            width = buckets[i][1].toNumber()
-            if (startValue <= buyRate1 && buyRate1 < startValue + width) {
-                buyer1Bucket = buckets[i]
-                buyerBucketFound = true
-            }
-            if (startValue <= sellRate1 && sellRate1 < startValue + width) {
-                seller1Bucket = buckets[i]
-                sellerBucketFound = true
-            }
-            if (buyerBucketFound && sellerBucketFound) {
-                break
-            }
-        }
-        //expect(buyer1Bucket[2]).eq(1)
+        const {b:buyer1Bucket, s:seller1Bucket} = choooseBuckets(buckets, buyRate1, sellRate1)
+        expect(buyer1Bucket[2]).eq(1)
         expect(seller1Bucket[2]).eq(0)
-    })
 
-    it("generate proof and send to marketplace", async function () {
-        // buyer1 generate range proof and then send to marketplace
-        let buyer1Input = {
-            "a": buyer1Bucket[0],
-            "b": buyer1Bucket[0].add(buyer1Bucket[1]), // we get BigNumber in bucket object, so we can't just use + to add two BigNumbers, or some wired thing happens.
-            "m": buyRate1
-        }
-        let wasm = path.join(__dirname, "../circuit/range_proof_js", "range_proof.wasm");
-        let zkey = path.join(__dirname, "../circuit/range_proof_js", "circuit_final.zkey");
-        let vkeypath = path.join(__dirname, "../circuit/range_proof_js", "verification_key.json");
-        const wc = require("../circuit/range_proof_js/witness_calculator");
-        const buffer = fs.readFileSync(wasm);
-        const witnessCalculator = await wc(buffer);
+        // buyer2 and seller2 choose buckets
+        const {b:buyer2Bucket, s:seller2Bucket} = choooseBuckets(buckets, buyRate2, sellRate2)
+        expect(buyer2Bucket[2]).eq(2)
+        expect(seller2Bucket[2]).eq(1)
 
-        let witnessBuffer = await witnessCalculator.calculateWTNSBin(
-            buyer1Input,
-            0
-        );
-        var {proof, publicSignals} = await snarkjs.groth16.prove(zkey, witnessBuffer);
+        // buyer1 generates range proof and then send to marketplace
+        let proof = await generateRangeProof(buyer1Bucket[0], buyer1Bucket[0].add(buyer1Bucket[1]), buyRate1)
         var {a, b, c} = parseProof(proof);
-        
         let tx = await bucketization.attachOrderBook(buyOrder1Id, buyer1Bucket, a, b, c);
         await tx.wait()
 
-        // seller1 generate range proof and then send to marketplace
-        let seller1Input = {
-            "a": seller1Bucket[0],
-            "b": seller1Bucket[0].add(seller1Bucket[1]),
-            "m": sellRate1
-        }
-
-        witnessBuffer = await witnessCalculator.calculateWTNSBin(
-            seller1Input,
-            0
-        );
-        var {proof, publicSignals} = await snarkjs.groth16.prove(zkey, witnessBuffer);
+        // seller1 generates range proof and then send to marketplace
+        proof = await generateRangeProof(seller1Bucket[0], seller1Bucket[0].add(seller1Bucket[1]), sellRate1)
         var {a, b, c} = parseProof(proof);
-        
         tx = await bucketization.attachOrderBook(sellOrder1Id, seller1Bucket, a, b, c);
+        await tx.wait()
+
+        // buyer2 generates range proof and then send to marketplace
+        proof = await generateRangeProof(buyer2Bucket[0], buyer2Bucket[0].add(buyer2Bucket[1]), buyRate2)
+        var {a, b, c} = parseProof(proof);
+        tx = await bucketization.attachOrderBook(buyOrder2Id, buyer2Bucket, a, b, c);
+        await tx.wait()
+
+        // seller2 generates range proof and then send to marketplace
+        proof = await generateRangeProof(seller2Bucket[0], seller2Bucket[0].add(seller2Bucket[1]), sellRate2)
+        var {a, b, c} = parseProof(proof);
+        tx = await bucketization.attachOrderBook(sellOrder2Id, seller2Bucket, a, b, c);
         await tx.wait()
     })
 
@@ -231,45 +291,106 @@ describe.only("zkDEX test", () => {
         let tx = await bucketization.tradeRound()
         await tx.wait()
 
-        // buyer1 receive matching from marketplace
+        // buyer1 and seller1 receive matching from marketplace
         let res = await bucketization.findMatchedSeller(buyOrder1Id, buyer1.address)
         let matchedSeller = res[0]
-        pairId = res[1]
+        pairId1 = res[1]
         expect(matchedSeller).eq(seller1.address)
 
-        // seller1 receive matching from marketplace
         res = await bucketization.findMatchedBuyer(sellOrder1Id, seller1.address)
         let matchedBuyer = res[0]
-        let pairId1 = res[1]
+        let samePairId1 = res[1]
         expect(matchedBuyer).eq(buyer1.address) 
 
-        expect(pairId).eq(pairId1)
+        expect(pairId1).eq(samePairId1)
+
+        // buyer2 and seller2 receive matching from marketplace
+        res = await bucketization.findMatchedSeller(buyOrder2Id, buyer2.address)
+        matchedSeller = res[0]
+        pairId2 = res[1]
+        expect(matchedSeller).eq(seller2.address)
+
+        res = await bucketization.findMatchedBuyer(sellOrder2Id, seller2.address)
+        matchedBuyer = res[0]
+        let samePairId2 = res[1]
+        expect(matchedBuyer).eq(buyer2.address) 
+
+        expect(pairId2).eq(samePairId2)
     })
 
     // Omit the verification process between buyers and sellers
 
     it("settlement test", async function () {
+        // settle buyer1 and seller1
         // Calculate fees
         let fees = buyRate1 - sellRate1
-        //console.log(r11.sub(r12).umod(ec.n).toString()) 
-        let feesComm = pc.commitTo(H, r11.sub(r12).umod(ec.n), fees) // notice that umod is a must or sometimes the onchain check won't pass
-        let x = BigNumber.from(feesComm.getX().toString())
-        let y = BigNumber.from(feesComm.getY().toString())
+        let rSub;
+        if (r11 > r12) {
+            rSub = BigInt(r11 - r12) % babyJubOrder
+        } else {
+            rSub = BigInt(r11 - r12) + babyJubOrder
+        }
+        console.log("rSub:", rSub)
+        let feesComm = await pc.commitTo(H, rSub, fees) // notice that umod is a must or sometimes the onchain check won't pass
+        let x = babyjub.F.toString(feesComm[0])
+        let y = babyjub.F.toString(feesComm[1])
+        // console.log("feesCommX:", x)
+        // console.log("feesCommY:", y)
         let r1 = BigNumber.from(r11.toString())
         let r2 = BigNumber.from(r12.toString())
-        let hx = BigNumber.from(H.getX().toString())
-        let hy = BigNumber.from(H.getY().toString())
+        let hx = babyjub.F.toString(H[0])
+        let hy = babyjub.F.toString(H[1])
+        // let subComm = await pc.subCommitment(H, r11, r12, BigInt(buyRate1), BigInt(sellRate1))
+        // console.log("subCommX", babyjub.F.toString(subComm[0]))
+        // console.log("subCommY", babyjub.F.toString(subComm[1]))
 
         // send to the marketplace 
+        let tx = await bucketization.confirmRound(r1, r2, fees, x, y, pairId1.toNumber(), hx, hy)
+        await tx.wait()
+        buyer1Balance -= buyRate1
+        seller1Balance += sellRate1
+
+
+        // settle buyer2 and seller2
+        // Calculate fees    
+        fees = buyRate2 - sellRate2
+        if (r21 > r22) {
+            rSub = BigInt(r21 - r22) % babyJubOrder
+        } else {
+            rSub = BigInt(r21 - r22) + babyJubOrder
+        }
+        console.log("rSub:", rSub)
+        feesComm = await pc.commitTo(H, rSub, fees) // notice that umod is a must or sometimes the onchain check won't pass
+        x = babyjub.F.toString(feesComm[0])
+        y = babyjub.F.toString(feesComm[1])
+        r1 = BigNumber.from(r21.toString())
+        r2 = BigNumber.from(r22.toString())
+
+        // send to the marketplace 
+        tx = await bucketization.confirmRound(r1, r2, fees, x, y, pairId2.toNumber(), hx, hy)
+        await tx.wait()
+        buyer2Balance -= buyRate2
+        seller2Balance += sellRate2
+    })
+
+    it("withdraw test", async function () {
+        // buyer1 withdraw
         // let buyer1BalanceBefore = await provider.getBalance(buyer1.address)
-        // let seller1BalanceBefore = await provider.getBalance(seller1.address)
+        // console.log(buyer1BalanceBefore)
+        let withdrawR
+        if (depositBuyer1r > r11) {
+            withdrawR = BigInt(depositBuyer1r - r11) % babyJubOrder
+        } else {
+            withdrawR = BigInt(depositBuyer1r - r11) + babyJubOrder
+        }
         
-        let tx = await bucketization.confirmRound(r1, r2, fees, x, y, pairId.toNumber(), hx, hy)
+        let {proof, publicSignals} = await generatePedersenProof(withdrawR, buyer1Balance);
+        var {a, b, c} = parseProof(proof)
+        let tx = await bucketization.withdraw(buyer1.address, a, b, c, publicSignals, buyer1Balance)
         await tx.wait()
 
         // let buyer1BalanceAfter = await provider.getBalance(buyer1.address)
-        // let seller1BalanceAfter = await provider.getBalance(seller1.address)
-        // expect(buyer1BalanceAfter.add(buyRate1)).eq(buyer1BalanceBefore)
-        // expect(seller1BalanceAfter).eq(seller1BalanceBefore.add(sellRate1))
+        // console.log(buyer1BalanceAfter)
+        // expect(buyer1BalanceBefore.add(ethers.utils.parseEther(buyer1Balance.toString()))).eq(buyer1BalanceAfter)
     })
 });
