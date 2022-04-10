@@ -3,7 +3,7 @@ pragma solidity ^0.8.0;
 
 import "./range_proof_verifier.sol";
 
-contract RangeProof is Verifier {
+contract RangeProof is RangeProofVerifier {
     function verifyRangeProof(
             uint[2] memory a,
             uint[2][2] memory b,
@@ -13,5 +13,3 @@ contract RangeProof is Verifier {
         return verifyProof(a, b, c, input);
     }
 }
-
-

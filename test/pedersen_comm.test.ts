@@ -60,7 +60,7 @@ function bigint_to_array(n: number, k: number, x: bigint) {
     return ret;
 }
 
-describe.only("Pedersen Commitment Proof", () => {
+describe("Pedersen Commitment Proof", () => {
     let contract
     before(async() => {
         let F = await ethers.getContractFactory("PedersenComm");
