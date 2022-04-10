@@ -18,7 +18,6 @@ contract Bucketization is Marketplace, RangeProof {
     PedersenComm _pcVerifier;
 
     uint256 constant private restrictedDealCount = 1;
-    uint256 public constant Q = 21888242871839275222246405745257275088614511777268538073601725287587578984328; //21888242871839275222246405745257275088548364400416034343698204186575808495617;
 
     mapping (address => uint256[3]) private _credits; // array[0] => r || array[1] => X || array[2] => Y
     mapping (address => uint256) private _dealTimes;
@@ -76,8 +75,6 @@ contract Bucketization is Marketplace, RangeProof {
         require(_dealTimes[trader] >= restrictedDealCount, "B: not enough deal time");
         require(_pcVerifier.verifyPedersenComm(a, b, c, input), "B: invalid pedersen comm");
         require(_credits[trader][1] > 0 && _credits[trader][2] > 0, "B: account has no assets");
-        //require(commX == _credits[trader][1] && commY == _credits[trader][2], "B: invalid credit commitmet");
-        //payable(trader).transfer(v);
         (bool success, ) = trader.call{value: v}("");
         require(success, "Transfer failed.");
         delete _credits[trader];
@@ -85,10 +82,6 @@ contract Bucketization is Marketplace, RangeProof {
 
     // 3.1-3.4
     function submitOrder(address account, uint256 rateCommX, uint256 rateCommY, uint kind) public returns(uint) {
-        // TODO check credit is positive, the trader needs to submit a range proof to proof his credit is enough to submit this order
-        // if (kind == 0) {
-        //     require(verify(a, b, c, input), "B: not enough credit");
-        // }
         _orderId.increment();
         uint256 id = _orderId.current();
         _orderIdToOrderIdx[id] = _unmatchedOrders.length;
@@ -175,27 +168,15 @@ contract Bucketization is Marketplace, RangeProof {
         uint256 r3;
         uint256 feeCommX;
         uint256 feeCommY;
-        console.log("pair.buyOrder.rateCommX", pair.buyOrder.rateCommX);
-        console.log("pair.buyOrder.rateCommY", pair.buyOrder.rateCommY);
-        console.log("pair.sellOrder.rateCommX", pair.sellOrder.rateCommX);
-        console.log("pair.sellOrder.rateCommY", pair.sellOrder.rateCommY);
         (r3, feeCommX, feeCommY) = _pc.subCommitment(r1, pair.buyOrder.rateCommX, pair.buyOrder.rateCommY, r2, pair.sellOrder.rateCommX, pair.sellOrder.rateCommY);
-        console.log("confirmRound proofx", proofX);
-        console.log("confirmRound proofy", proofY);
-        console.log("confirmRound proofx % p", proofX % Q);
-        console.log("confirmRound proofy % p", proofY % Q);
-        console.log("confirmRound feeCommX", feeCommX);
-        console.log("confirmRound feeCommY", feeCommY);
         require(feeCommX == proofX && feeCommY == proofY, "B: Invalid fee comm");
-        console.log("111");
-        console.log("r3:", r3);
         require(_pc.verifyWithH(r3, fees, feeCommX, feeCommY, hx, hy), "B: Verify commitment failed");
-        console.log("222");
         debit(pair.buyOrder.trader, r1, pair.buyOrder.rateCommX, pair.buyOrder.rateCommY);
         credit(pair.sellOrder.trader, r2, pair.sellOrder.rateCommX, pair.sellOrder.rateCommY);
         _dealTimes[pair.buyOrder.trader] += 1;
         _dealTimes[pair.sellOrder.trader] += 1;
         
+        // TODO marketplace account receive fees
         // _marketplaceAccount.transfer(fees);
 
         delete _matchedPair[pairId];

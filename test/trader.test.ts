@@ -1,37 +1,13 @@
-const { waffle, ethers}  = require("hardhat");
 import { Wallet, ContractFactory, BigNumber, BigNumberish } from "ethers";
 import { expect } from "chai";
-import { commitmentForBlindSignRequest } from '@mattrglobal/node-bbs-signatures/lib/bbsSignature';
-import { parse } from "dotenv";
+import {buildBabyjub} from "circomlibjs";
+
+const { waffle, ethers}  = require("hardhat");
 const fs = require("fs");
 const path = require("path");
-var EC = require('elliptic').ec;
-var ec = new EC('secp256k1');
-
-import {buildBabyjub} from "circomlibjs";
-import { BabyJub } from "../typechain";
-
 const hre = require("hardhat");
-
-const provider = waffle.provider
-
 const pc = require("@ieigen/anonmisc/lib/pedersen");
-
 const snarkjs = require("snarkjs");
-
-const p = BigNumber.from("21888242871839275222246405745257275088548364400416034343698204186575808495617")
-
-
-const MarketplaceABI = [
-    "funciton chooseBuckets()"
-]
-
-const BucketizationABI = [
-    "function submitOrder(address account, uint256 rateCommX, uint256 rateCommY, uint kind) returns(uint)"
-]
-
-const MaxBalance = 1000000
-
 const babyJubOrder = BigInt("21888242871839275222246405745257275088614511777268538073601725287587578984328")
 
 let H
@@ -66,7 +42,7 @@ let seller1Balance = 100
 let buyer2Balance = 100
 let seller2Balance = 100
 let depositBuyer1Random
-let tmp
+let depositBuyer1r
 
 interface Proof {
     a: [BigNumberish, BigNumberish];
@@ -83,13 +59,6 @@ function parseProof(proof: any): Proof {
         ],
         c: [proof.pi_c[0], proof.pi_c[1]],
     };
-}
-
-function buff2hex(buff) {
-    function i2hex(i) {
-      return ('0' + i.toString(16)).slice(-2);
-    }
-    return Array.from(buff).map(i2hex).join('');
 }
 
 async function generateRangeProof(l, r, m) {
@@ -158,7 +127,7 @@ async function generatePedersenProof(r, v) {
     return {proof, publicSignals}
 }
 
-describe.only("zkDEX test", () => {
+describe("zkDEX test", () => {
     before(async () => {
         babyjub = await buildBabyjub();
         H = await pc.generateH();
@@ -170,11 +139,6 @@ describe.only("zkDEX test", () => {
         // seller2 = Wallet.createRandom().connect(provider)
         // marketplace = Wallet.createRandom().connect(provider)
         console.log("buyer1 address:", buyer1.address)
-        // let balance = await provider.getBalance(buyer1.address)
-        // let etherString = ethers.utils.formatEther(balance)
-        // let etherNumber = Number(etherString)
-        // console.log(etherNumber)
-        // console.log("buyer balance:", etherString)
         console.log("seller1 address:", seller1.address)
         console.log("buyer2 address:", buyer2.address)
         console.log("seller2 address:", seller2.address)
@@ -194,15 +158,13 @@ describe.only("zkDEX test", () => {
     beforeEach(async function () {
     })
 
-    it.only("deposit test", async function () {
+    it("deposit test", async function () {
         // buyer1 deposits 100 Ether to contract address
-        tmp = await pc.generateRandom()
-        depositBuyer1Random = BigNumber.from(tmp.toString())
-        let balanceComm = await pc.commitTo(H, tmp, buyer1Balance)
+        depositBuyer1r = await pc.generateRandom()
+        depositBuyer1Random = BigNumber.from(depositBuyer1r.toString())
+        let balanceComm = await pc.commitTo(H, depositBuyer1r, buyer1Balance)
         let x = babyjub.F.toString(balanceComm[0])
         let y = babyjub.F.toString(balanceComm[1])
-        // let x = BigNumber.from(balanceComm[0])
-        // let y = BigNumber.from(balanceComm[1])
         // This could expose the buyer1's balance
         let res = await bucketization.transferToMarketplace({ value: ethers.utils.parseEther("100") })
         await res.wait()
@@ -215,8 +177,6 @@ describe.only("zkDEX test", () => {
         balanceComm = await pc.commitTo(H, r, seller1Balance)
         x = babyjub.F.toString(balanceComm[0])
         y = babyjub.F.toString(balanceComm[1])
-        // x = BigNumber.from(balanceComm[0])
-        // y = BigNumber.from(balanceComm[1])
         //await (await seller1.sendTransaction({to: bucketization.address, value: ethers.utils.parseEther("100")})).wait()
         tx = await bucketization.deposit(seller1.address, r, x, y)
         await tx.wait()
@@ -240,15 +200,12 @@ describe.only("zkDEX test", () => {
         await tx.wait()
     })
 
-    it.only("submitOrder test", async function () {
+    it("submitOrder test", async function () {
         // buyer1 sends order to marketplace
         r11 = await pc.generateRandom();
         let rateComm = await pc.commitTo(H, r11, buyRate1)
-        //console.dir(rateComm)
         let x = babyjub.F.toString(rateComm[0])
         let y = babyjub.F.toString(rateComm[1])
-        // let x = BigNumber.from(rateComm[0])
-        // let y = BigNumber.from(rateComm[1])
         console.log("buy 1 rateComm x,y:")
         console.log(x)
         console.log(y)
@@ -262,14 +219,8 @@ describe.only("zkDEX test", () => {
         // seller1 sends order to marketplace
         r12 = await pc.generateRandom();
         rateComm = await pc.commitTo(H, r12, sellRate1)
-        //console.dir(rateComm)
         x = babyjub.F.toString(rateComm[0])
         y = babyjub.F.toString(rateComm[1])
-        // x = BigNumber.from(rateComm[0])
-        // y = BigNumber.from(rateComm[1])
-        console.log("sell 1 rateComm x,y:")
-        console.log(x)
-        console.log(y)
         sellOrder1Id = await bucketization.callStatic.submitOrder(seller1.address, x, y, 1)
         await bucketization.submitOrder(seller1.address, x, y, 1)
         expect(sellOrder1Id).eq(2)
@@ -277,14 +228,8 @@ describe.only("zkDEX test", () => {
         // buyer2 sends order to marketplace
         r21 = await pc.generateRandom();
         rateComm = await pc.commitTo(H, r21, buyRate2)
-        //console.dir(rateComm)
         x = babyjub.F.toString(rateComm[0])
         y = babyjub.F.toString(rateComm[1])
-        // x = BigNumber.from(rateComm[0])
-        // y = BigNumber.from(rateComm[1])
-        // console.log("buy 2 rateComm x,y:")
-        // console.log(x)
-        // console.log(y)
         buyOrder2Id = await bucketization.callStatic.submitOrder(buyer2.address, x, y, 0)
         await bucketization.submitOrder(buyer2.address, x, y, 0)
         expect(buyOrder2Id).eq(3) 
@@ -292,24 +237,17 @@ describe.only("zkDEX test", () => {
         // seller2 sends order to marketplace
         r22 = await pc.generateRandom();
         rateComm = await pc.commitTo(H, r22, sellRate2)
-        //console.dir(rateComm)
         x = babyjub.F.toString(rateComm[0])
         y = babyjub.F.toString(rateComm[1])
-        // x = BigNumber.from(rateComm[0])
-        // y = BigNumber.from(rateComm[1])
-        // console.log("sell 1 rateComm x,y:")
-        // console.log(x)
-        // console.log(y)
         sellOrder2Id = await bucketization.callStatic.submitOrder(seller2.address, x, y, 1)
         await bucketization.submitOrder(seller2.address, x, y, 1)
         expect(sellOrder2Id).eq(4)
     })
 
-    it.only("receive buckets from marketplace and send generated proof to marketplace", async function () {
+    it("receive buckets from marketplace and send generated proof to marketplace", async function () {
         // buyer receive buckets from marketplace 
         let buckets = await marketplace.chooseBuckets()
         await marketplace.chooseBuckets()
-        //console.log(buckets)
         var keyArr = Object.keys(buckets)
         expect(keyArr.length).eq(11)
 
@@ -324,9 +262,6 @@ describe.only("zkDEX test", () => {
         expect(seller2Bucket[2]).eq(1)
 
         // buyer1 generates range proof and then send to marketplace
-        // console.log(buyer1Bucket)
-        // let tmp = buyer1Bucket[0]
-        // console.log(tmp)
         let proof = await generateRangeProof(buyer1Bucket[0], buyer1Bucket[0].add(buyer1Bucket[1]), buyRate1)
         var {a, b, c} = parseProof(proof);
         let tx = await bucketization.attachOrderBook(buyOrder1Id, buyer1Bucket, a, b, c);
@@ -351,7 +286,7 @@ describe.only("zkDEX test", () => {
         await tx.wait()
     })
 
-    it.only("matching test", async function () {
+    it("matching test", async function () {
         // simulate marketplace matching 
         let tx = await bucketization.tradeRound()
         await tx.wait()
@@ -385,11 +320,10 @@ describe.only("zkDEX test", () => {
 
     // Omit the verification process between buyers and sellers
 
-    it.only("settlement test", async function () {
+    it("settlement test", async function () {
         // settle buyer1 and seller1
         // Calculate fees
         let fees = buyRate1 - sellRate1
-        //console.log(r11.sub(r12).umod(ec.n).toString()) 
         let rSub;
         if (r11 > r12) {
             rSub = BigInt(r11 - r12) % babyJubOrder
@@ -400,21 +334,15 @@ describe.only("zkDEX test", () => {
         let feesComm = await pc.commitTo(H, rSub, fees) // notice that umod is a must or sometimes the onchain check won't pass
         let x = babyjub.F.toString(feesComm[0])
         let y = babyjub.F.toString(feesComm[1])
-        // let x = BigNumber.from(feesComm[0])
-        // let y = BigNumber.from(feesComm[1])
-        console.log("feesCommX:", x)
-        console.log("feesCommY:", y)
+        // console.log("feesCommX:", x)
+        // console.log("feesCommY:", y)
         let r1 = BigNumber.from(r11.toString())
         let r2 = BigNumber.from(r12.toString())
         let hx = babyjub.F.toString(H[0])
         let hy = babyjub.F.toString(H[1])
-        // let hx = BigNumber.from(H[0])
-        // let hy = BigNumber.from(H[1])
-        let subComm = await pc.subCommitment(H, r11, r12, BigInt(buyRate1), BigInt(sellRate1))
-        console.log("subCommX", babyjub.F.toString(subComm[0]))
-        console.log("subCommY", babyjub.F.toString(subComm[1]))
-        // let x = BigNumber.from(subComm[0])
-        // let y = BigNumber.from(subComm[1])
+        // let subComm = await pc.subCommitment(H, r11, r12, BigInt(buyRate1), BigInt(sellRate1))
+        // console.log("subCommX", babyjub.F.toString(subComm[0]))
+        // console.log("subCommY", babyjub.F.toString(subComm[1]))
 
         // send to the marketplace 
         let tx = await bucketization.confirmRound(r1, r2, fees, x, y, pairId1.toNumber(), hx, hy)
@@ -426,7 +354,6 @@ describe.only("zkDEX test", () => {
         // settle buyer2 and seller2
         // Calculate fees    
         fees = buyRate2 - sellRate2
-        //console.log(r11.sub(r12).umod(ec.n).toString()) 
         if (r21 > r22) {
             rSub = BigInt(r21 - r22) % babyJubOrder
         } else {
@@ -446,28 +373,24 @@ describe.only("zkDEX test", () => {
         seller2Balance += sellRate2
     })
 
-    it.only("withdraw test", async function () {
+    it("withdraw test", async function () {
         // buyer1 withdraw
         // let buyer1BalanceBefore = await provider.getBalance(buyer1.address)
         // console.log(buyer1BalanceBefore)
-        // console.log(ethers.utils.parseEther(buyer1BalanceBefore.toString()))
         let withdrawR
-        if (tmp > r11) {
-            withdrawR = BigInt(tmp - r11) % babyJubOrder
+        if (depositBuyer1r > r11) {
+            withdrawR = BigInt(depositBuyer1r - r11) % babyJubOrder
         } else {
-            withdrawR = BigInt(tmp - r11) + babyJubOrder
+            withdrawR = BigInt(depositBuyer1r - r11) + babyJubOrder
         }
-        //let withdrawR = tmp - r11//depositBuyer1Random.sub(r11).umod(ec.n)
         
         let {proof, publicSignals} = await generatePedersenProof(withdrawR, buyer1Balance);
         var {a, b, c} = parseProof(proof)
         let tx = await bucketization.withdraw(buyer1.address, a, b, c, publicSignals, buyer1Balance)
-        //let tx = await bucketization.withdraw(buyer1.address, a, b, c, withdrawR, buyer1Balance)
         await tx.wait()
 
         // let buyer1BalanceAfter = await provider.getBalance(buyer1.address)
         // console.log(buyer1BalanceAfter)
-        // console.log(ethers.utils.parseEther(buyer1BalanceAfter.toString()))
         // expect(buyer1BalanceBefore.add(ethers.utils.parseEther(buyer1Balance.toString()))).eq(buyer1BalanceAfter)
     })
 });

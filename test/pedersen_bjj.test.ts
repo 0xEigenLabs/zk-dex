@@ -46,9 +46,8 @@ describe("Double Pedersen test", function() {
     // refer: https://github.com/iden3/circomlib/blob/master/test/pedersen.js
     it("Should pedersen at zero", async () => {
         const input = {
-            "in": ["1139939", "0122049820189"]
+            "in": ["11111", "01212121212"]
         }
-        // "in": ["11111", "01212121212"]
         const witnessBuffer = await circuit.calculateWTNSBin(
             input,
             0
