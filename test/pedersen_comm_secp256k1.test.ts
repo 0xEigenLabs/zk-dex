@@ -7,18 +7,11 @@ const snarkjs = require("snarkjs");
 
 const cls = require("circomlibjs");
 
-const secp256k1 = require('@noble/secp256k1')
-const CURVE = secp256k1.CURVE
-const Point = secp256k1.Point
-var G = new Point(CURVE.Gx, CURVE.Gy)
-
 const pc = require("@ieigen/anonmisc/lib/pedersen");
 var H = pc.generateH();
-
-
-// var EC = require('elliptic').ec;
-// var ec = new EC('secp256k1');
-// var G = ec.g;
+var EC = require('elliptic').ec;
+var ec = new EC('secp256k1');
+var G = ec.g;
 
 interface Proof {
     a: [BigNumberish, BigNumberish];
@@ -60,7 +53,7 @@ function bigint_to_array(n: number, k: number, x: bigint) {
     return ret;
 }
 
-describe("Pedersen Commitment Proof", () => {
+describe.only("Pedersen Commitment Proof", () => {
     let contract
     before(async() => {
         let F = await ethers.getContractFactory("PedersenComm");
@@ -68,26 +61,26 @@ describe("Pedersen Commitment Proof", () => {
     })
 
     it.only("Test pedersen commitment proof should equal", async() => {
-        let r = pc.generateRandom()
+        let r = BigInt(pc.generateRandom())
         let v = BigInt(5)
         var r_array: bigint[] = bigint_to_array(64, 4, r)
         var v_array: bigint[] = bigint_to_array(64, 4, v)
 
-        let x = H.x
-        let y = H.y
+        let x = BigInt(H.getX().toString())
+        let y = BigInt(H.getY().toString())
         var hx_array: bigint[] = bigint_to_array(64, 4, x)
         var hy_array: bigint[] = bigint_to_array(64, 4, y)
         var h = [hx_array, hy_array]
 
-        x = G.x
-        y = G.y
+        x = BigInt(G.getX().toString())
+        y = BigInt(G.getY().toString())
         var gx_array: bigint[] = bigint_to_array(64, 4, x)
         var gy_array: bigint[] = bigint_to_array(64, 4, y)
         var g = [gx_array, gy_array]
         
         let res = pc.commitTo(H, r, v)
-        x = res.x
-        y = res.y
+        x = BigInt(res.getX().toString())
+        y = BigInt(res.getY().toString())
         var comm_x_array: bigint[] = bigint_to_array(64, 4, x)
         var comm_y_array: bigint[] = bigint_to_array(64, 4, y)
         var comm = [comm_x_array, comm_y_array]
@@ -100,10 +93,10 @@ describe("Pedersen Commitment Proof", () => {
             "comm": comm
         }
         
-        let wasm = path.join(__dirname, "../circuit/pedersen_comm_js", "pedersen_comm.wasm");
-        let zkey = path.join(__dirname, "../circuit/pedersen_comm_js", "circuit_final.zkey");
-        let vkeypath = path.join(__dirname, "../circuit/pedersen_comm_js", "verification_key.json");
-        const wc = require("../circuit/pedersen_comm_js/witness_calculator");
+        let wasm = path.join(__dirname, "../circuit/pedersen_comm_secp256k1_js", "pedersen_comm_secp256k1.wasm");
+        let zkey = path.join(__dirname, "../circuit/pedersen_comm_secp256k1_js", "circuit_final.zkey");
+        let vkeypath = path.join(__dirname, "../circuit/pedersen_comm_secp256k1_js", "verification_key.json");
+        const wc = require("../circuit/pedersen_comm_secp256k1_js/witness_calculator");
         const buffer = fs.readFileSync(wasm);
         const witnessCalculator = await wc(buffer);
 
@@ -114,35 +107,33 @@ describe("Pedersen Commitment Proof", () => {
         const { proof, publicSignals } = await snarkjs.groth16.prove(zkey, witnessBuffer);
         const {a, b, c} = parseProof(proof);
 
-        expect(await contract.check(
+        expect(await contract.verifyPedersenComm(
             a, b, c,
             [v_array, h, g, comm]
         )).to.eq(true)
     })
 
     it("Test pedersen commitment proof should fail", async() => {
-        let r = pc.generateRandom()
+        let r = BigInt(pc.generateRandom())
         let v = BigInt(5)
-        let diff_v = BigInt(6)
         var r_array: bigint[] = bigint_to_array(64, 4, r)
         var v_array: bigint[] = bigint_to_array(64, 4, v)
-        var diff_v_array: bigint[] = bigint_to_array(64, 4, diff_v)
 
-        let x = H.x
-        let y = H.y
+        let x = BigInt(H.getX().toString())
+        let y = BigInt(H.getY().toString())
         var hx_array: bigint[] = bigint_to_array(64, 4, x)
         var hy_array: bigint[] = bigint_to_array(64, 4, y)
         var h = [hx_array, hy_array]
 
-        x = G.x
-        y = G.y
+        x = BigInt(G.getX().toString())
+        y = BigInt(G.getY().toString())
         var gx_array: bigint[] = bigint_to_array(64, 4, x)
         var gy_array: bigint[] = bigint_to_array(64, 4, y)
         var g = [gx_array, gy_array]
         
         let res = pc.commitTo(H, r, v)
-        x = res.x
-        y = res.y
+        x = BigInt(res.getX().toString())
+        y = BigInt(res.getY().toString())
         var comm_x_array: bigint[] = bigint_to_array(64, 4, x)
         var comm_y_array: bigint[] = bigint_to_array(64, 4, y)
         var comm = [comm_x_array, comm_y_array]
@@ -155,10 +146,10 @@ describe("Pedersen Commitment Proof", () => {
             "comm": comm
         }
         
-        let wasm = path.join(__dirname, "../circuit/pedersen_comm_js", "pedersen_comm.wasm");
-        let zkey = path.join(__dirname, "../circuit/pedersen_comm_js", "circuit_final.zkey");
-        let vkeypath = path.join(__dirname, "../circuit/pedersen_comm_js", "verification_key.json");
-        const wc = require("../circuit/pedersen_comm_js/witness_calculator");
+        let wasm = path.join(__dirname, "../circuit/pedersen_comm_secp256k1_js", "pedersen_comm_secp256k1.wasm");
+        let zkey = path.join(__dirname, "../circuit/pedersen_comm_secp256k1_js", "circuit_final.zkey");
+        let vkeypath = path.join(__dirname, "../circuit/pedersen_comm_secp256k1_js", "verification_key.json");
+        const wc = require("../circuit/pedersen_comm_secp256k1_js/witness_calculator");
         const buffer = fs.readFileSync(wasm);
         const witnessCalculator = await wc(buffer);
 
@@ -169,9 +160,9 @@ describe("Pedersen Commitment Proof", () => {
         const { proof, publicSignals } = await snarkjs.groth16.prove(zkey, witnessBuffer);
         const {a, b, c} = parseProof(proof);
 
-        expect(await contract.check(
+        expect(await contract.verifyPedersenComm(
             a, b, c,
-            [diff_v_array, h, g, comm]
-        )).to.eq(false)
+            [1, 20]
+        )).to.eq(true)
     })
 })

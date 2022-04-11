@@ -112,10 +112,10 @@ async function generatePedersenProof(r, v) {
         "in": [r, v]
     }
 
-    let wasm = path.join(__dirname, "../circuit/pedersen_bjj_js", "pedersen_bjj.wasm");
-    let zkey = path.join(__dirname, "../circuit/pedersen_bjj_js", "circuit_final.zkey");
-    let vkeypath = path.join(__dirname, "../circuit/pedersen_bjj_js", "verification_key.json");
-    const wc = require("../circuit/pedersen_bjj_js/witness_calculator");
+    let wasm = path.join(__dirname, "../circuit/pedersen_comm_babyjubjub_js", "pedersen_comm_babyjubjub.wasm");
+    let zkey = path.join(__dirname, "../circuit/pedersen_comm_babyjubjub_js", "circuit_final.zkey");
+    let vkeypath = path.join(__dirname, "../circuit/pedersen_comm_babyjubjub_js", "verification_key.json");
+    const wc = require("../circuit/pedersen_comm_babyjubjub_js/witness_calculator");
     const buffer = fs.readFileSync(wasm);
     let circuit = await wc(buffer);
     const witnessBuffer = await circuit.calculateWTNSBin(
@@ -206,9 +206,6 @@ describe("zkDEX test", () => {
         let rateComm = await pc.commitTo(H, r11, buyRate1)
         let x = babyjub.F.toString(rateComm[0])
         let y = babyjub.F.toString(rateComm[1])
-        console.log("buy 1 rateComm x,y:")
-        console.log(x)
-        console.log(y)
         // make sure the trader has enough balance to submit order, we can do the check in the backend
         // let proof = generateRangeProof(0, buyer1Balance, buyRate1) // generate proof: 0 <= buyerRate1 < buyer1Balance, buyRate1 is private and buyer1Balace is public
         // const {a, b, c} = parseProof(proof)
@@ -330,7 +327,7 @@ describe("zkDEX test", () => {
         } else {
             rSub = BigInt(r11 - r12) + babyJubOrder
         }
-        console.log("rSub:", rSub)
+        //console.log("rSub:", rSub)
         let feesComm = await pc.commitTo(H, rSub, fees) // notice that umod is a must or sometimes the onchain check won't pass
         let x = babyjub.F.toString(feesComm[0])
         let y = babyjub.F.toString(feesComm[1])
@@ -359,7 +356,7 @@ describe("zkDEX test", () => {
         } else {
             rSub = BigInt(r21 - r22) + babyJubOrder
         }
-        console.log("rSub:", rSub)
+        //console.log("rSub:", rSub)
         feesComm = await pc.commitTo(H, rSub, fees) // notice that umod is a must or sometimes the onchain check won't pass
         x = babyjub.F.toString(feesComm[0])
         y = babyjub.F.toString(feesComm[1])
