@@ -27,15 +27,16 @@ function parseProof(proof: any): Proof {
 describe("Range Proof", () => {
     let contract
     before(async() => {
-        let F = await ethers.getContractFactory("RangeProof");
+        let F = await ethers.getContractFactory("RangeProofVerifier");
         contract = await F.deploy();
+        await contract.deployed();
     })
 
     it("Test default proof", async () => {
         const proof = require("../circuit/range_proof_js/proof.json");
 
         const {a, b, c} = parseProof(proof)
-        expect(await contract.check(
+        expect(await contract.verifyProof(
             a, b, c,
             [1, 10000]
         )).to.eq(true)
@@ -63,7 +64,7 @@ describe("Range Proof", () => {
         const {a, b, c} = parseProof(proof);
 
         //a, b
-        expect(await contract.check(
+        expect(await contract.verifyProof(
             a, b, c,
             [1, 20]
         )).to.eq(true)
@@ -91,7 +92,7 @@ describe("Range Proof", () => {
         const {a, b, c} = parseProof(proof);
 
         //a, b
-        expect(await contract.verifyRangeProof(
+        expect(await contract.verifyProof(
             a, b, c,
             [1, 41]
         )).to.eq(false)

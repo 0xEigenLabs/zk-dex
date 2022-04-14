@@ -1,21 +1,22 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.0;
 
-import "@ieigen/anonmisc/contracts/PedersenCommitmentBabyJub.sol";
+import "@ieigen/anonmisc/contracts/PedersenCommitmentBabyJubjub.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
 import "./Marketplace.sol";
-import "./PedersenComm.sol";
-import "./RangeProof.sol";
+import "./pedersen_comm_babyjubjub_verifier.sol";
+import "./range_proof_verifier.sol";
 
 import "hardhat/console.sol";
 
-contract Bucketization is Marketplace, RangeProof {
+contract Bucketization is Marketplace {
     using Counters for Counters.Counter;
     Counters.Counter private _orderId;
     Counters.Counter private _pairId;
 
-    PedersenCommitmentBabyJub _pc;
-    PedersenComm _pcVerifier;
+    PedersenCommitmentBabyJubjub _pc;
+    PedersenCommBabyJubjubVerifier _pcVerifier;
+    RangeProofVerifier _rfVerifier;
 
     uint256 constant private restrictedDealCount = 1;
 
@@ -34,9 +35,10 @@ contract Bucketization is Marketplace, RangeProof {
 
     constructor(/*address payable marketplaceAccount*/) {
         // _marketplaceAccount = marketplaceAccount; // to be comfired
-        _pc = new PedersenCommitmentBabyJub();
+        _pc = new PedersenCommitmentBabyJubjub();
         _pc.setH();
-        _pcVerifier = new PedersenComm();
+        _pcVerifier = new PedersenCommBabyJubjubVerifier();
+        _rfVerifier = new RangeProofVerifier();
     }
 
     UnmatchedOrder[] private _unmatchedOrders;
@@ -60,20 +62,20 @@ contract Bucketization is Marketplace, RangeProof {
 
 
     function deposit(address account, uint256 r, uint256 commX, uint256 commY) public {
-        _credits[account][0] = r;
-        _credits[account][1] = commX;
-        _credits[account][2] = commY;
-        //(_credits[account][0], _credits[account][1], _credits[account][2]) = _pc.addCommitment(_credits[account][0], _credits[account][1], _credits[account][2], r, commX, commY);
-        console.log(account);
-        console.log(_credits[account][1]);
-        console.log(_credits[account][2]);
+        if (_credits[account][0] == 0 && _credits[account][1] == 0 && _credits[account][2] == 0) {
+            _credits[account][0] = r;
+            _credits[account][1] = commX;
+            _credits[account][2] = commY;
+        } else {
+            (_credits[account][0], _credits[account][1], _credits[account][2]) = _pc.addCommitment(_credits[account][0], _credits[account][1], _credits[account][2], r, commX, commY);
+        }
     }
 
     function withdraw(address trader, uint[2] memory a, uint[2][2] memory b, uint[2] memory c, uint[2] memory input, uint v) public payable {
         //require(msg.sender == trader, "B: invalid withdraw address");
         // Restrict users to withdraw cash after a certain number of deal.
         require(_dealTimes[trader] >= restrictedDealCount, "B: not enough deal time");
-        require(_pcVerifier.verifyPedersenComm(a, b, c, input), "B: invalid pedersen comm");
+        require(_pcVerifier.verifyProof(a, b, c, input), "B: invalid pedersen comm");
         require(_credits[trader][1] > 0 && _credits[trader][2] > 0, "B: account has no assets");
         (bool success, ) = trader.call{value: v}("");
         require(success, "Transfer failed.");
@@ -96,7 +98,7 @@ contract Bucketization is Marketplace, RangeProof {
         uint[2] memory input = [bucket.startValue, bucket.startValue + bucket.width];
 
         // check the bucket including the rateComm
-        require(verifyRangeProof(a, b, c, input), "B: Invalid range proof");
+        require(_rfVerifier.verifyProof(a, b, c, input), "B: Invalid range proof");
 
         // TODO check the rateComm is exactly from order id
 
@@ -199,9 +201,6 @@ contract Bucketization is Marketplace, RangeProof {
 
     function debit(address trader, uint256 r, uint256 commX, uint256 commY) internal {
         (_credits[trader][0], _credits[trader][1], _credits[trader][2]) = _pc.subCommitment(_credits[trader][0], _credits[trader][1], _credits[trader][2], r, commX, commY);
-        console.log(trader);
-        console.log(_credits[trader][1]);
-        console.log(_credits[trader][2]);
     }
 
     function credit(address trader, uint256 r, uint256 commX, uint256 commY) internal {

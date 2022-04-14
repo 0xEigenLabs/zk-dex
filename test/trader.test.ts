@@ -6,11 +6,11 @@ const { waffle, ethers}  = require("hardhat");
 const fs = require("fs");
 const path = require("path");
 const hre = require("hardhat");
-const pc = require("@ieigen/anonmisc/lib/pedersen");
+const pc = require("@ieigen/anonmisc/lib/pedersen_babyJubjub");
 const snarkjs = require("snarkjs");
-const babyJubOrder = BigInt("21888242871839275222246405745257275088614511777268538073601725287587578984328")
 
 let H
+let order
 let babyjub
 let contract
 let marketplace
@@ -112,10 +112,10 @@ async function generatePedersenProof(r, v) {
         "in": [r, v]
     }
 
-    let wasm = path.join(__dirname, "../circuit/pedersen_bjj_js", "pedersen_bjj.wasm");
-    let zkey = path.join(__dirname, "../circuit/pedersen_bjj_js", "circuit_final.zkey");
-    let vkeypath = path.join(__dirname, "../circuit/pedersen_bjj_js", "verification_key.json");
-    const wc = require("../circuit/pedersen_bjj_js/witness_calculator");
+    let wasm = path.join(__dirname, "../circuit/pedersen_comm_babyjubjub_js", "pedersen_comm_babyjubjub.wasm");
+    let zkey = path.join(__dirname, "../circuit/pedersen_comm_babyjubjub_js", "circuit_final.zkey");
+    let vkeypath = path.join(__dirname, "../circuit/pedersen_comm_babyjubjub_js", "verification_key.json");
+    const wc = require("../circuit/pedersen_comm_babyjubjub_js/witness_calculator");
     const buffer = fs.readFileSync(wasm);
     let circuit = await wc(buffer);
     const witnessBuffer = await circuit.calculateWTNSBin(
@@ -130,6 +130,7 @@ async function generatePedersenProof(r, v) {
 describe("zkDEX test", () => {
     before(async () => {
         babyjub = await buildBabyjub();
+        order = babyjub.order;
         H = await pc.generateH();
         [buyer1, seller1, buyer2, seller2, marketplace] = await hre.ethers.getSigners();
 
@@ -206,9 +207,6 @@ describe("zkDEX test", () => {
         let rateComm = await pc.commitTo(H, r11, buyRate1)
         let x = babyjub.F.toString(rateComm[0])
         let y = babyjub.F.toString(rateComm[1])
-        console.log("buy 1 rateComm x,y:")
-        console.log(x)
-        console.log(y)
         // make sure the trader has enough balance to submit order, we can do the check in the backend
         // let proof = generateRangeProof(0, buyer1Balance, buyRate1) // generate proof: 0 <= buyerRate1 < buyer1Balance, buyRate1 is private and buyer1Balace is public
         // const {a, b, c} = parseProof(proof)
@@ -326,11 +324,11 @@ describe("zkDEX test", () => {
         let fees = buyRate1 - sellRate1
         let rSub;
         if (r11 > r12) {
-            rSub = BigInt(r11 - r12) % babyJubOrder
+            rSub = BigInt(r11 - r12) % order
         } else {
-            rSub = BigInt(r11 - r12) + babyJubOrder
+            rSub = BigInt(r11 - r12) + order
         }
-        console.log("rSub:", rSub)
+        //console.log("rSub:", rSub)
         let feesComm = await pc.commitTo(H, rSub, fees) // notice that umod is a must or sometimes the onchain check won't pass
         let x = babyjub.F.toString(feesComm[0])
         let y = babyjub.F.toString(feesComm[1])
@@ -355,11 +353,11 @@ describe("zkDEX test", () => {
         // Calculate fees    
         fees = buyRate2 - sellRate2
         if (r21 > r22) {
-            rSub = BigInt(r21 - r22) % babyJubOrder
+            rSub = BigInt(r21 - r22) % order
         } else {
-            rSub = BigInt(r21 - r22) + babyJubOrder
+            rSub = BigInt(r21 - r22) + order
         }
-        console.log("rSub:", rSub)
+        //console.log("rSub:", rSub)
         feesComm = await pc.commitTo(H, rSub, fees) // notice that umod is a must or sometimes the onchain check won't pass
         x = babyjub.F.toString(feesComm[0])
         y = babyjub.F.toString(feesComm[1])
@@ -379,9 +377,9 @@ describe("zkDEX test", () => {
         // console.log(buyer1BalanceBefore)
         let withdrawR
         if (depositBuyer1r > r11) {
-            withdrawR = BigInt(depositBuyer1r - r11) % babyJubOrder
+            withdrawR = BigInt(depositBuyer1r - r11) % order
         } else {
-            withdrawR = BigInt(depositBuyer1r - r11) + babyJubOrder
+            withdrawR = BigInt(depositBuyer1r - r11) + order
         }
         
         let {proof, publicSignals} = await generatePedersenProof(withdrawR, buyer1Balance);

@@ -12,13 +12,13 @@
   "author": "",
   "license": "Apache-2.0",
   "dependencies": {
-    "@ieigen/anonmisc": "^0.0.2",
+    "@ieigen/anonmisc": "^0.0.7",
     "@mattrglobal/node-bbs-signatures": "^0.13.0",
     "@noble/secp256k1": "^1.5.5",
     "@openzeppelin/contracts": "^4.5.0",
     "bignumber.js": "^9.0.2",
-    "circomlibjs": "^0.1.1",
     "circomlib": "^2.0.2",
+    "circomlibjs": "^0.1.1",
     "sequelize": "^6.15.0",
     "snarkjs": "^0.4.6"
   },

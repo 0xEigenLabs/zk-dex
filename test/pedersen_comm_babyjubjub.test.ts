@@ -31,14 +31,14 @@ describe("Double Pedersen test", function() {
     let zkey
     let contract
     before( async() => {
-        let wasm = path.join(__dirname, "../circuit/pedersen_bjj_js", "pedersen_bjj.wasm");
-        zkey = path.join(__dirname, "../circuit/pedersen_bjj_js", "circuit_final.zkey");
-        let vkeypath = path.join(__dirname, "../circuit/pedersen_bjj_js", "verification_key.json");
-        const wc = require("../circuit/pedersen_bjj_js/witness_calculator");
+        let wasm = path.join(__dirname, "../circuit/pedersen_comm_babyjubjub_js", "pedersen_comm_babyjubjub.wasm");
+        zkey = path.join(__dirname, "../circuit/pedersen_comm_babyjubjub_js", "circuit_final.zkey");
+        let vkeypath = path.join(__dirname, "../circuit/pedersen_comm_babyjubjub_js", "verification_key.json");
+        const wc = require("../circuit/pedersen_comm_babyjubjub_js/witness_calculator");
         const buffer = fs.readFileSync(wasm);
         circuit = await wc(buffer);
 
-        let factory = await ethers.getContractFactory("PedersenComm");
+        let factory = await ethers.getContractFactory("PedersenCommBabyJubjubVerifier");
         contract = await factory.deploy();
         await contract.deployed();
     });
@@ -59,7 +59,7 @@ describe("Double Pedersen test", function() {
         //console.log(res)
 
         const {a, b, c} = parseProof(proof);
-        let ok = await contract.verifyPedersenComm(
+        let ok = await contract.verifyProof(
             a, b, c,
             publicSignals
         )
