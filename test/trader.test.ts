@@ -8,7 +8,7 @@ const path = require("path");
 const hre = require("hardhat");
 const pc = require("@ieigen/anonmisc/lib/pedersen");
 const snarkjs = require("snarkjs");
-const babyJubOrder = BigInt("21888242871839275222246405745257275088614511777268538073601725287587578984328")
+const order = BigInt("21888242871839275222246405745257275088614511777268538073601725287587578984328")
 
 let H
 let babyjub
@@ -323,9 +323,9 @@ describe("zkDEX test", () => {
         let fees = buyRate1 - sellRate1
         let rSub;
         if (r11 > r12) {
-            rSub = BigInt(r11 - r12) % babyJubOrder
+            rSub = BigInt(r11 - r12) % order
         } else {
-            rSub = BigInt(r11 - r12) + babyJubOrder
+            rSub = BigInt(r11 - r12) + order
         }
         //console.log("rSub:", rSub)
         let feesComm = await pc.commitTo(H, rSub, fees) // notice that umod is a must or sometimes the onchain check won't pass
@@ -352,9 +352,9 @@ describe("zkDEX test", () => {
         // Calculate fees    
         fees = buyRate2 - sellRate2
         if (r21 > r22) {
-            rSub = BigInt(r21 - r22) % babyJubOrder
+            rSub = BigInt(r21 - r22) % order
         } else {
-            rSub = BigInt(r21 - r22) + babyJubOrder
+            rSub = BigInt(r21 - r22) + order
         }
         //console.log("rSub:", rSub)
         feesComm = await pc.commitTo(H, rSub, fees) // notice that umod is a must or sometimes the onchain check won't pass
@@ -376,9 +376,9 @@ describe("zkDEX test", () => {
         // console.log(buyer1BalanceBefore)
         let withdrawR
         if (depositBuyer1r > r11) {
-            withdrawR = BigInt(depositBuyer1r - r11) % babyJubOrder
+            withdrawR = BigInt(depositBuyer1r - r11) % order
         } else {
-            withdrawR = BigInt(depositBuyer1r - r11) + babyJubOrder
+            withdrawR = BigInt(depositBuyer1r - r11) + order
         }
         
         let {proof, publicSignals} = await generatePedersenProof(withdrawR, buyer1Balance);
