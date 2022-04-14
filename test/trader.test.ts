@@ -6,7 +6,7 @@ const { waffle, ethers}  = require("hardhat");
 const fs = require("fs");
 const path = require("path");
 const hre = require("hardhat");
-const pc = require("@ieigen/anonmisc/lib/pedersen");
+const pc = require("@ieigen/anonmisc/lib/pedersen_babyJubjub");
 const snarkjs = require("snarkjs");
 
 let H

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.0;
 
-import "@ieigen/anonmisc/contracts/PedersenCommitmentBabyJub.sol";
+import "@ieigen/anonmisc/contracts/PedersenCommitmentBabyJubjub.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
 import "./Marketplace.sol";
 import "./pedersen_comm_babyjubjub_verifier.sol";
@@ -14,7 +14,7 @@ contract Bucketization is Marketplace {
     Counters.Counter private _orderId;
     Counters.Counter private _pairId;
 
-    PedersenCommitmentBabyJub _pc;
+    PedersenCommitmentBabyJubjub _pc;
     PedersenCommBabyJubjubVerifier _pcVerifier;
     RangeProofVerifier _rfVerifier;
 
@@ -35,7 +35,7 @@ contract Bucketization is Marketplace {
 
     constructor(/*address payable marketplaceAccount*/) {
         // _marketplaceAccount = marketplaceAccount; // to be comfired
-        _pc = new PedersenCommitmentBabyJub();
+        _pc = new PedersenCommitmentBabyJubjub();
         _pc.setH();
         _pcVerifier = new PedersenCommBabyJubjubVerifier();
         _rfVerifier = new RangeProofVerifier();
