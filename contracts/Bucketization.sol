@@ -7,8 +7,6 @@ import "./Marketplace.sol";
 import "./pedersen_comm_babyjubjub_verifier.sol";
 import "./range_proof_verifier.sol";
 
-import "hardhat/console.sol";
-
 contract Bucketization is Marketplace {
     using Counters for Counters.Counter;
     Counters.Counter private _orderId;
