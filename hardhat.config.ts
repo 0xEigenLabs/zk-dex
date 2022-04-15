@@ -22,15 +22,18 @@ module.exports = {
     settings: {
       optimizer: {
         enabled: true,
-	        runs: 200,
+	      runs: 200,
         details: {
-          yul: true,
-          yulDetails: {
+            yul: true,
+            yulDetails: {
             stackAllocation: true,
           }
 	      }	
       }
     }
+  },
+  mocha: {
+    timeout: 10000000,
   },
   typechain: {
     outDir: 'typechain',
