@@ -4,8 +4,6 @@ node_modules
 cache
 artifacts
 typechain
-circuit/range_proof_js
-circuit/pedersen_comm_babyjubjub_js
 dist
 
 circuit/proof.json
