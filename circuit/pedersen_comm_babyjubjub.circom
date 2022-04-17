@@ -24,6 +24,8 @@ template Main() {
 
     pedersen.out[0] ==> out[0];
     pedersen.out[1] ==> out[1];
+    log(out[0]);
+    log(out[1]);
 }
 
 component main = Main();

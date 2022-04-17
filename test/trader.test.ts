@@ -8,6 +8,7 @@ const path = require("path");
 const hre = require("hardhat");
 const pc = require("@ieigen/anonmisc/lib/pedersen_babyJubjub");
 const snarkjs = require("snarkjs");
+const provider = waffle.provider
 
 let H
 let order
@@ -19,6 +20,7 @@ let buyer1
 let seller1
 let buyer2
 let seller2
+let marketplaceAccount
 let r11
 let r12
 let r21
@@ -132,7 +134,7 @@ describe("zkDEX test", () => {
         babyjub = await buildBabyjub();
         order = babyjub.order;
         H = await pc.generateH();
-        [buyer1, seller1, buyer2, seller2, marketplace] = await hre.ethers.getSigners();
+        [buyer1, seller1, buyer2, seller2, marketplaceAccount] = await hre.ethers.getSigners();
 
         // buyer1 = Wallet.createRandom().connect(provider)
         // seller1 = Wallet.createRandom().connect(provider)
@@ -143,7 +145,7 @@ describe("zkDEX test", () => {
         console.log("seller1 address:", seller1.address)
         console.log("buyer2 address:", buyer2.address)
         console.log("seller2 address:", seller2.address)
-        console.log("marketplace account address:", marketplace.address)
+        console.log("marketplace account address:", marketplaceAccount.address)
 
         contract = await ethers.getContractFactory("Marketplace");
         marketplace = await contract.deploy()
@@ -151,7 +153,7 @@ describe("zkDEX test", () => {
         console.log("marketplace contract address:", marketplace.address)
 
         contract = await ethers.getContractFactory("Bucketization");
-        bucketization = await contract.deploy()
+        bucketization = await contract.deploy(marketplaceAccount.address)
         await bucketization.deployed()
         console.log("bucketization contract address:", bucketization.address)        
     })
@@ -170,7 +172,7 @@ describe("zkDEX test", () => {
         let res = await bucketization.transferToMarketplace({ value: ethers.utils.parseEther("100") })
         await res.wait()
         //await (await buyer1.sendTransaction({to: bucketization.getAddress(), value: ethers.utils.parseEther("100")})).wait()
-        let tx = await bucketization.deposit(buyer1.address, depositBuyer1Random, x, y)
+        let tx = await bucketization.deposit(buyer1.address, /*depositBuyer1Random,*/ x, y)
         await tx.wait()
 
         // seller1 deposits 100 Ether to contract address
@@ -179,7 +181,7 @@ describe("zkDEX test", () => {
         x = babyjub.F.toString(balanceComm[0])
         y = babyjub.F.toString(balanceComm[1])
         //await (await seller1.sendTransaction({to: bucketization.address, value: ethers.utils.parseEther("100")})).wait()
-        tx = await bucketization.deposit(seller1.address, r, x, y)
+        tx = await bucketization.deposit(seller1.address, /*r,*/ x, y)
         await tx.wait()
 
         // buyer2 deposits 100 Ether to contract address
@@ -188,7 +190,7 @@ describe("zkDEX test", () => {
         x = babyjub.F.toString(balanceComm[0])
         y = babyjub.F.toString(balanceComm[1])
         //await (await buyer2.sendTransaction({to: bucketization.address, value: ethers.utils.parseEther("100")})).wait()
-        tx = await bucketization.deposit(buyer2.address, r, x, y)
+        tx = await bucketization.deposit(buyer2.address, /*r,*/ x, y)
         await tx.wait()
 
         // seller2 deposits 100 Ether to contract address
@@ -197,7 +199,7 @@ describe("zkDEX test", () => {
         x = babyjub.F.toString(balanceComm[0])
         y = babyjub.F.toString(balanceComm[1])
         //await (await seller2.sendTransaction({to: bucketization.address, value: ethers.utils.parseEther("100")})).wait()
-        tx = await bucketization.deposit(seller2.address, r, x, y)
+        tx = await bucketization.deposit(seller2.address, /*r,*/ x, y)
         await tx.wait()
     })
 
@@ -342,9 +344,15 @@ describe("zkDEX test", () => {
         // console.log("subCommX", babyjub.F.toString(subComm[0]))
         // console.log("subCommY", babyjub.F.toString(subComm[1]))
 
+        let marketplaceAccountBefore = await provider.getBalance(marketplaceAccount.address);
+        console.log("start:", marketplaceAccountBefore.toString())
+        console.log("fees:", fees)
         // send to the marketplace 
-        let tx = await bucketization.confirmRound(r1, r2, fees, x, y, pairId1.toNumber(), hx, hy)
+        let tx = await bucketization.confirmRound(/*r1, r2,*/ fees, x, y, pairId1.toNumber(), hx, hy)
         await tx.wait()
+        let marketplaceAccountAfter = await provider.getBalance(marketplaceAccount.address); 
+        console.log("end:", marketplaceAccountAfter.toString())
+        expect(marketplaceAccountAfter).eq(marketplaceAccountBefore.add(fees))
         buyer1Balance -= buyRate1
         seller1Balance += sellRate1
 
@@ -364,9 +372,15 @@ describe("zkDEX test", () => {
         r1 = BigNumber.from(r21.toString())
         r2 = BigNumber.from(r22.toString())
 
+        marketplaceAccountBefore = await provider.getBalance(marketplaceAccount.address)
+        console.log("start:", marketplaceAccountBefore.toString())
+        console.log("fees:", fees)
         // send to the marketplace 
-        tx = await bucketization.confirmRound(r1, r2, fees, x, y, pairId2.toNumber(), hx, hy)
+        tx = await bucketization.confirmRound(/*r1, r2,*/ fees, x, y, pairId2.toNumber(), hx, hy)
         await tx.wait()
+        marketplaceAccountAfter = await provider.getBalance(marketplaceAccount.address)
+        console.log("end:", marketplaceAccountAfter.toString())
+        expect(marketplaceAccountAfter).eq(marketplaceAccountBefore.add(fees))
         buyer2Balance -= buyRate2
         seller2Balance += sellRate2
     })
@@ -384,7 +398,12 @@ describe("zkDEX test", () => {
         
         let {proof, publicSignals} = await generatePedersenProof(withdrawR, buyer1Balance);
         var {a, b, c} = parseProof(proof)
-        let tx = await bucketization.withdraw(buyer1.address, a, b, c, publicSignals, buyer1Balance)
+
+        let withdrawBalanceCommm = await pc.commitTo(H, withdrawR, buyer1Balance)
+        let x = babyjub.F.toString(withdrawBalanceCommm[0])
+        let y = babyjub.F.toString(withdrawBalanceCommm[1])
+
+        let tx = await bucketization.connect(buyer1).withdraw(buyer1.address, a, b, c, publicSignals, x, y, buyer1Balance)
         await tx.wait()
 
         // let buyer1BalanceAfter = await provider.getBalance(buyer1.address)
