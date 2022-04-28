@@ -71,25 +71,26 @@ contract Bucketization is Marketplace {
         }
     }
 
-    function withdraw(address trader, uint[2] memory a, uint[2][2] memory b, uint[2] memory c, uint[2] memory input, uint256 x, uint256 y, uint v) public payable {
+    function withdraw(address trader, uint[2] memory a, uint[2][2] memory b, uint[2] memory c, uint[5] memory input) public payable {
+        // input[0] => hx input[1] => hy input[2] => v input[3] => commx input[4] => commy
         require(msg.sender == trader, "B: invalid withdraw address");
         // Restrict users to withdraw cash after a certain number of deal.
         require(_dealTimes[trader] >= restrictedDealCount, "B: not enough deal time");
         require(_pcVerifier.verifyProof(a, b, c, input), "B: invalid proof");
         require(_credits[trader][0] > 0 && _credits[trader][1] > 0, "B: account has no assets");
-        // console.log("_credits[trader][0]", _credits[trader][0]);
-        // console.log("input[0]", input[0]);
-        // console.log("_credits[trader][1]", _credits[trader][1]);
-        // console.log("input[1]", input[1]);
-        // require(_credits[trader][0] == input[0] && _credits[trader][1] == input[1], "B:invalid pedersen comm");
-        require(_credits[trader][0] == x && _credits[trader][1] == y, "B:invalid pedersen comm");
-        (bool success, ) = trader.call{value: v}("");
+        require(_credits[trader][0] == input[3] && _credits[trader][1] == input[4], "B:invalid pedersen comm");
+        (bool success, ) = trader.call{value: input[2]}("");
         require(success, "Transfer failed.");
         delete _credits[trader];
     }
 
     // 3.1-3.4
-    function submitOrder(address account, uint256 rateCommX, uint256 rateCommY, uint kind) public returns(uint) {
+    function submitOrder(address account, /*uint[2] memory a, uint[2][2] memory b, uint[2] memory c, uint[5] memory input, */uint256 rateCommX, uint256 rateCommY, uint kind) public returns(uint) {
+        // check the bucket including the rateComm
+        // require(_pcVerifier.verifyProof(a1, b1, c1, input1), "B:invalid pedersen comm");
+        // require(_credits[account][0] == input1[3] && _credits[account][1] == input1[4], "B:invalid pedersen comm");
+        // require(_rfVerifier.verifyProof(a2, b2, c2, input2), "B: Invalid range proof");
+        // require(_rfVerifier.verifyProof(a3, b3, c3, input3), "B: Invalid range proof");
         _orderId.increment();
         uint256 id = _orderId.current();
         _orderIdToOrderIdx[id] = _unmatchedOrders.length;
@@ -183,9 +184,6 @@ contract Bucketization is Marketplace {
         credit(pair.sellOrder.trader, /*r2,*/ pair.sellOrder.rateCommX, pair.sellOrder.rateCommY);
         _dealTimes[pair.buyOrder.trader] += 1;
         _dealTimes[pair.sellOrder.trader] += 1;
-        
-        // TODO marketplace account receive fees
-        // _marketplaceAccount.transfer(fees);
         (bool success, ) = _marketplaceAccount.call{value: fees}("");
         require(success, "Transfer failed.");
 

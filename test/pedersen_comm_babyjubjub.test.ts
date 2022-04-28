@@ -38,7 +38,7 @@ describe("Double Pedersen test", function() {
         const buffer = fs.readFileSync(wasm);
         circuit = await wc(buffer);
 
-        let factory = await ethers.getContractFactory("PedersenCommBabyJubjubVerifier");
+        let factory = await ethers.getContractFactory("Verifier");
         contract = await factory.deploy();
         await contract.deployed();
     });
@@ -46,7 +46,16 @@ describe("Double Pedersen test", function() {
     // refer: https://github.com/iden3/circomlib/blob/master/test/pedersen.js
     it("Should pedersen at zero", async () => {
         const input = {
-            "in": ["11111", "01212121212"]
+            "H": [
+              "6230554789957970145215337505398881261822212318664924668379426670874097221003",
+              "5398230348265168451715249421208726036420771114427148549530635721570527592474"
+            ],
+            "r": "15234991401612976859424945774878329190532666920322606448273387428648700648199",
+            "v": "805",
+            "comm": [
+              "5434698982234190249305374094631383876778256933564855719986344407296692881880",
+              "15114311991195134539210677959285812356643640052349155301332867067573555804389"
+            ]
         }
         const witnessBuffer = await circuit.calculateWTNSBin(
             input,
@@ -64,6 +73,8 @@ describe("Double Pedersen test", function() {
             publicSignals
         )
         console.log(publicSignals)
+        console.log(publicSignals[3])
+        console.log(publicSignals[4])
         expect(ok).to.eq(true)
     });
 });

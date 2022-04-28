@@ -37,10 +37,10 @@ contract Marketplace {
 
     OrderPair[] private matchedOrders;
 
-    uint DEFAULT_BUCKET_WIDTH = 10;
+    uint DEFAULT_BUCKET_WIDTH = 10 * (10 ** 18);
 
     function chooseBuckets() public view returns (Bucket[] memory) {
-        uint endValue = 100;
+        uint endValue = 100 * (10 ** 18);
         uint startValue = 0;
         uint bucketCount = endValue.sub(startValue).div(DEFAULT_BUCKET_WIDTH).add(1);
         Bucket[] memory buckets = new Bucket[](bucketCount);
