@@ -6,6 +6,7 @@ import "@openzeppelin/contracts/utils/Counters.sol";
 import "./Marketplace.sol";
 import "./pedersen_comm_babyjubjub_verifier.sol";
 import "./range_proof_verifier.sol";
+import "./pedersen_comm_plus_range_proof_verifier.sol";
 
 import "hardhat/console.sol";
 
@@ -17,6 +18,7 @@ contract Bucketization is Marketplace {
     PedersenCommitmentBabyJubjub _pc;
     PedersenCommBabyJubjubVerifier _pcVerifier;
     RangeProofVerifier _rfVerifier;
+    PedersenCommPlusRangeProofVerifier _pcrfVerifier;
 
     uint256 constant private restrictedDealCount = 1;
 
@@ -40,6 +42,7 @@ contract Bucketization is Marketplace {
         _pc.setH();
         _pcVerifier = new PedersenCommBabyJubjubVerifier();
         _rfVerifier = new RangeProofVerifier();
+        _pcrfVerifier = new PedersenCommPlusRangeProofVerifier();
     }
 
     UnmatchedOrder[] private _unmatchedOrders;
@@ -85,12 +88,9 @@ contract Bucketization is Marketplace {
     }
 
     // 3.1-3.4
-    function submitOrder(address account, /*uint[2] memory a, uint[2][2] memory b, uint[2] memory c, uint[5] memory input, */uint256 rateCommX, uint256 rateCommY, uint kind) public returns(uint) {
-        // check the bucket including the rateComm
-        // require(_pcVerifier.verifyProof(a1, b1, c1, input1), "B:invalid pedersen comm");
-        // require(_credits[account][0] == input1[3] && _credits[account][1] == input1[4], "B:invalid pedersen comm");
-        // require(_rfVerifier.verifyProof(a2, b2, c2, input2), "B: Invalid range proof");
-        // require(_rfVerifier.verifyProof(a3, b3, c3, input3), "B: Invalid range proof");
+    function submitOrder(address account, uint[2] memory a, uint[2][2] memory b, uint[2] memory c, uint[7] memory input, uint256 rateCommX, uint256 rateCommY, uint kind) public returns(uint) {
+        require(_pcrfVerifier.verifyProof(a, b, c, input), "B:invalid proof");
+        require(_credits[account][0] == input[2] && _credits[account][1] == input[3], "B:invalid pedersen comm");
         _orderId.increment();
         uint256 id = _orderId.current();
         _orderIdToOrderIdx[id] = _unmatchedOrders.length;

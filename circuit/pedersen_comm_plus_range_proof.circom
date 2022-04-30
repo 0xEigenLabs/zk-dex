@@ -9,13 +9,13 @@ include "../node_modules/circomlib/circuits/comparators.circom";
 template PedersenCommitmentPlusRangeProof(n) {
     signal input H[2];
     signal input r;
-    signal input v;
+    signal input balance;
     signal input comm[2];
     
     signal input a;
     signal input b;
     signal input c;
-    signal input balance;
+    signal input rate;
 
 
     var G[2] = [
@@ -25,7 +25,7 @@ template PedersenCommitmentPlusRangeProof(n) {
     var i;
 
     component r2bits = Num2Bits(256);
-    component v2bits = Num2Bits(256);
+    component balance2bits = Num2Bits(256);
     component escalarMulr = EscalarMulFix(256, G);
     component escalarMulv = EscalarMulAny(256);
     component adder = BabyAdd();
@@ -36,11 +36,11 @@ template PedersenCommitmentPlusRangeProof(n) {
     component greater3 = GreaterEqThan(n);
 
     r ==> r2bits.in;
-    v ==> v2bits.in;
+    balance ==> balance2bits.in;
 
     for (i=0; i<256; i++) {
         r2bits.out[i] ==> escalarMulr.e[i];
-        v2bits.out[i] ==> escalarMulv.e[i];
+        balance2bits.out[i] ==> escalarMulv.e[i];
     }
 
     H[0] ==> escalarMulv.p[0];
@@ -65,13 +65,14 @@ template PedersenCommitmentPlusRangeProof(n) {
     greater2.in[1] <== b;
     1 === greater2.out;
 
-    // v <= b
+    // rate <= b
     greater3.in[0] <== b;
-    greater3.in[1] <== v;
+    greater3.in[1] <== rate;
     1 === greater3.out;
 
+    // a < rate
     lessor.in[0] <== a;
-    lessor.in[1] <== v;
+    lessor.in[1] <== rate;
     lessor.out === 1;
 }
 

@@ -7,7 +7,23 @@ typechain
 dist
 
 circuit/pedersen_comm_babyjubjub_js/*
+!circuit/pedersen_comm_babyjubjub_js/circuit_final.zkey
+!circuit/pedersen_comm_babyjubjub_js/pedersen_comm_babyjubjub.wasm
+!circuit/pedersen_comm_babyjubjub_js/verification_key.json
+!circuit/pedersen_comm_babyjubjub_js/witness_calculator.js
+
 circuit/range_proof_js/*
+!circuit/range_proof_js/circuit_final.zkey
+!circuit/range_proof_js/proof.json
+!circuit/range_proof_js/range_proof.wasm
+!circuit/range_proof_js/verification_key.json
+!circuit/range_proof_js/witness_calculator.js
+
+circuit/pedersen_comm_plus_range_proof_js/*
+!circuit/pedersen_comm_plus_range_proof_js/circuit_final.zkey
+!circuit/pedersen_comm_plus_range_proof_js/pedersen_comm_plus_range_proof.wasm
+!circuit/pedersen_comm_plus_range_proof_js/verification_key.json
+!circuit/pedersen_comm_plus_range_proof_js/witness_calculator.js
 
 circuit/proof.json
 circuit/public.json
