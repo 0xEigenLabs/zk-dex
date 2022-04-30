@@ -6,6 +6,9 @@ import "@openzeppelin/contracts/utils/Counters.sol";
 import "./Marketplace.sol";
 import "./pedersen_comm_babyjubjub_verifier.sol";
 import "./range_proof_verifier.sol";
+import "./pedersen_comm_plus_range_proof_verifier.sol";
+
+import "hardhat/console.sol";
 
 contract Bucketization is Marketplace {
     using Counters for Counters.Counter;
@@ -15,10 +18,12 @@ contract Bucketization is Marketplace {
     PedersenCommitmentBabyJubjub _pc;
     PedersenCommBabyJubjubVerifier _pcVerifier;
     RangeProofVerifier _rfVerifier;
+    PedersenCommPlusRangeProofVerifier _pcrfVerifier;
 
     uint256 constant private restrictedDealCount = 1;
 
-    mapping (address => uint256[3]) private _credits; // array[0] => r || array[1] => X || array[2] => Y
+    //mapping (address => uint256[3]) private _credits; // array[0] => r || array[1] => X || array[2] => Y
+    mapping (address => uint256[2]) private _credits;
     mapping (address => uint256) private _dealTimes;
 
     struct UnmatchedOrder {
@@ -31,12 +36,13 @@ contract Bucketization is Marketplace {
 
     address payable private _marketplaceAccount;
 
-    constructor(/*address payable marketplaceAccount*/) {
-        // _marketplaceAccount = marketplaceAccount; // to be comfired
+    constructor(address payable marketplaceAccount) {
+        _marketplaceAccount = marketplaceAccount; // to be comfired
         _pc = new PedersenCommitmentBabyJubjub();
         _pc.setH();
         _pcVerifier = new PedersenCommBabyJubjubVerifier();
         _rfVerifier = new RangeProofVerifier();
+        _pcrfVerifier = new PedersenCommPlusRangeProofVerifier();
     }
 
     UnmatchedOrder[] private _unmatchedOrders;
@@ -59,29 +65,32 @@ contract Bucketization is Marketplace {
     receive() external payable {}
 
 
-    function deposit(address account, uint256 r, uint256 commX, uint256 commY) public {
-        if (_credits[account][0] == 0 && _credits[account][1] == 0 && _credits[account][2] == 0) {
-            _credits[account][0] = r;
-            _credits[account][1] = commX;
-            _credits[account][2] = commY;
+    function deposit(address account, /*uint256 r,*/uint256 commX, uint256 commY) public {
+        if (_credits[account][0] == 0 && _credits[account][1] == 0) {
+            _credits[account][0] = commX;
+            _credits[account][1] = commY;
         } else {
-            (_credits[account][0], _credits[account][1], _credits[account][2]) = _pc.addCommitment(_credits[account][0], _credits[account][1], _credits[account][2], r, commX, commY);
+            (, _credits[account][0], _credits[account][1]) = _pc.addCommitment(0, _credits[account][0], _credits[account][1], 0, commX, commY);
         }
     }
 
-    function withdraw(address trader, uint[2] memory a, uint[2][2] memory b, uint[2] memory c, uint[2] memory input, uint v) public payable {
-        //require(msg.sender == trader, "B: invalid withdraw address");
+    function withdraw(address trader, uint[2] memory a, uint[2][2] memory b, uint[2] memory c, uint[5] memory input) public payable {
+        // input[0] => hx input[1] => hy input[2] => v input[3] => commx input[4] => commy
+        require(msg.sender == trader, "B: invalid withdraw address");
         // Restrict users to withdraw cash after a certain number of deal.
         require(_dealTimes[trader] >= restrictedDealCount, "B: not enough deal time");
-        require(_pcVerifier.verifyProof(a, b, c, input), "B: invalid pedersen comm");
-        require(_credits[trader][1] > 0 && _credits[trader][2] > 0, "B: account has no assets");
-        (bool success, ) = trader.call{value: v}("");
+        require(_pcVerifier.verifyProof(a, b, c, input), "B: invalid proof");
+        require(_credits[trader][0] > 0 && _credits[trader][1] > 0, "B: account has no assets");
+        require(_credits[trader][0] == input[3] && _credits[trader][1] == input[4], "B:invalid pedersen comm");
+        (bool success, ) = trader.call{value: input[2]}("");
         require(success, "Transfer failed.");
         delete _credits[trader];
     }
 
     // 3.1-3.4
-    function submitOrder(address account, uint256 rateCommX, uint256 rateCommY, uint kind) public returns(uint) {
+    function submitOrder(address account, uint[2] memory a, uint[2][2] memory b, uint[2] memory c, uint[7] memory input, uint256 rateCommX, uint256 rateCommY, uint kind) public returns(uint) {
+        require(_pcrfVerifier.verifyProof(a, b, c, input), "B:invalid proof");
+        require(_credits[account][0] == input[2] && _credits[account][1] == input[3], "B:invalid pedersen comm");
         _orderId.increment();
         uint256 id = _orderId.current();
         _orderIdToOrderIdx[id] = _unmatchedOrders.length;
@@ -160,24 +169,23 @@ contract Bucketization is Marketplace {
     }
 
     // 3.17-3.22
-    function confirmRound(uint256 r1, uint256 r2, uint256 fees, uint256 proofX, uint256 proofY, uint pairId, uint256 hx, uint256 hy) public payable {
+    function confirmRound(/*uint256 r1, uint256 r2,*/uint256 fees, uint256 proofX, uint256 proofY, uint pairId, uint256 hx, uint256 hy) public payable {
         OrderPair memory pair = _matchedPair[pairId];
 
         // TODO check pair
 
-        uint256 r3;
+        //uint256 r3;
         uint256 feeCommX;
         uint256 feeCommY;
-        (r3, feeCommX, feeCommY) = _pc.subCommitment(r1, pair.buyOrder.rateCommX, pair.buyOrder.rateCommY, r2, pair.sellOrder.rateCommX, pair.sellOrder.rateCommY);
+        (, feeCommX, feeCommY) = _pc.subCommitment(0, pair.buyOrder.rateCommX, pair.buyOrder.rateCommY, 0, pair.sellOrder.rateCommX, pair.sellOrder.rateCommY);
         require(feeCommX == proofX && feeCommY == proofY, "B: Invalid fee comm");
-        require(_pc.verifyWithH(r3, fees, feeCommX, feeCommY, hx, hy), "B: Verify commitment failed");
-        debit(pair.buyOrder.trader, r1, pair.buyOrder.rateCommX, pair.buyOrder.rateCommY);
-        credit(pair.sellOrder.trader, r2, pair.sellOrder.rateCommX, pair.sellOrder.rateCommY);
+        //require(_pc.verifyWithH(r3, fees, feeCommX, feeCommY, hx, hy), "B: Verify commitment failed");
+        debit(pair.buyOrder.trader, /*r1,*/ pair.buyOrder.rateCommX, pair.buyOrder.rateCommY);
+        credit(pair.sellOrder.trader, /*r2,*/ pair.sellOrder.rateCommX, pair.sellOrder.rateCommY);
         _dealTimes[pair.buyOrder.trader] += 1;
         _dealTimes[pair.sellOrder.trader] += 1;
-        
-        // TODO marketplace account receive fees
-        // _marketplaceAccount.transfer(fees);
+        (bool success, ) = _marketplaceAccount.call{value: fees}("");
+        require(success, "Transfer failed.");
 
         delete _matchedPair[pairId];
         uint len = _buyerAddrToPairIds[pair.buyOrder.trader].length - 1;
@@ -197,11 +205,11 @@ contract Bucketization is Marketplace {
         _sellerAddrToPairIds[pair.sellOrder.trader].pop();
     }
 
-    function debit(address trader, uint256 r, uint256 commX, uint256 commY) internal {
-        (_credits[trader][0], _credits[trader][1], _credits[trader][2]) = _pc.subCommitment(_credits[trader][0], _credits[trader][1], _credits[trader][2], r, commX, commY);
+    function debit(address trader, /*uint256 r,*/ uint256 commX, uint256 commY) internal {
+        (, _credits[trader][0], _credits[trader][1]) = _pc.subCommitment(0, _credits[trader][0], _credits[trader][1], 0, commX, commY);
     }
 
-    function credit(address trader, uint256 r, uint256 commX, uint256 commY) internal {
-        (_credits[trader][0], _credits[trader][1], _credits[trader][2]) = _pc.addCommitment(_credits[trader][0], _credits[trader][1], _credits[trader][2], r, commX, commY);
+    function credit(address trader, /*uint256 r,*/ uint256 commX, uint256 commY) internal {
+        (, _credits[trader][0], _credits[trader][1]) = _pc.addCommitment(0, _credits[trader][0], _credits[trader][1], 0, commX, commY);
     }
 }
