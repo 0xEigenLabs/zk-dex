@@ -82,7 +82,6 @@ async function generateRangeProof(l, r, m) {
     }
     let wasm = path.join(__dirname, "../circuit/range_proof_js", "range_proof.wasm");
     let zkey = path.join(__dirname, "../circuit/range_proof_js", "circuit_final.zkey");
-    let vkeypath = path.join(__dirname, "../circuit/range_proof_js", "verification_key.json");
     const wc = require("../circuit/range_proof_js/witness_calculator");
     const buffer = fs.readFileSync(wasm);
     const witnessCalculator = await wc(buffer);
@@ -136,7 +135,6 @@ async function generatePedersenProof(hx, hy, r, v, commx, commy) {
 
     let wasm = path.join(__dirname, "../circuit/pedersen_comm_babyjubjub_js", "pedersen_comm_babyjubjub.wasm");
     let zkey = path.join(__dirname, "../circuit/pedersen_comm_babyjubjub_js", "circuit_final.zkey");
-    let vkeypath = path.join(__dirname, "../circuit/pedersen_comm_babyjubjub_js", "verification_key.json");
     const wc = require("../circuit/pedersen_comm_babyjubjub_js/witness_calculator");
     const buffer = fs.readFileSync(wasm);
     let circuit = await wc(buffer);
@@ -171,7 +169,6 @@ async function generatePedersenCommitmentPlusRangeproof(hx, hy, r, balance, comm
 
     let wasm = path.join(__dirname, "../circuit/pedersen_comm_plus_range_proof_js", "pedersen_comm_plus_range_proof.wasm");
     let zkey = path.join(__dirname, "../circuit/pedersen_comm_plus_range_proof_js", "circuit_final.zkey");
-    let vkeypath = path.join(__dirname, "../circuit/pedersen_comm_plus_range_proof_js", "verification_key.json");
     const wc = require("../circuit/pedersen_comm_plus_range_proof_js/witness_calculator");
     const buffer = fs.readFileSync(wasm);
     let circuit = await wc(buffer);

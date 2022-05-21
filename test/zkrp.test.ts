@@ -51,7 +51,6 @@ describe("Range Proof", () => {
         }
         let wasm = path.join(__dirname, "../circuit/range_proof_js", "range_proof.wasm");
         let zkey = path.join(__dirname, "../circuit/range_proof_js", "circuit_final.zkey");
-        let vkeypath = path.join(__dirname, "../circuit/range_proof_js", "verification_key.json");
         const wc = require("../circuit/range_proof_js/witness_calculator");
         const buffer = fs.readFileSync(wasm);
         const witnessCalculator = await wc(buffer);
@@ -79,7 +78,6 @@ describe("Range Proof", () => {
         }
         let wasm = path.join(__dirname, "../circuit/range_proof_js", "range_proof.wasm");
         let zkey = path.join(__dirname, "../circuit/range_proof_js", "circuit_final.zkey");
-        let vkeypath = path.join(__dirname, "../circuit/range_proof_js", "verification_key.json");
         const wc = require("../circuit/range_proof_js/witness_calculator");
         const buffer = fs.readFileSync(wasm);
         const witnessCalculator = await wc(buffer);

@@ -33,7 +33,6 @@ describe("Pedersen Commitment & Range Proof Test", function() {
     before( async() => {
         let wasm = path.join(__dirname, "../circuit/pedersen_comm_plus_range_proof_js", "pedersen_comm_plus_range_proof.wasm");
         zkey = path.join(__dirname, "../circuit/pedersen_comm_plus_range_proof_js", "circuit_final.zkey");
-        let vkeypath = path.join(__dirname, "../circuit/pedersen_comm_plus_range_proof_js", "verification_key.json");
         const wc = require("../circuit/pedersen_comm_plus_range_proof_js/witness_calculator");
         const buffer = fs.readFileSync(wasm);
         circuit = await wc(buffer);
