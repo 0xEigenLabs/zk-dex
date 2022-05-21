@@ -33,7 +33,6 @@ describe("Pedersen Commitment Test", function() {
     before( async() => {
         let wasm = path.join(__dirname, "../circuit/pedersen_comm_babyjubjub_js", "pedersen_comm_babyjubjub.wasm");
         zkey = path.join(__dirname, "../circuit/pedersen_comm_babyjubjub_js", "circuit_final.zkey");
-        let vkeypath = path.join(__dirname, "../circuit/pedersen_comm_babyjubjub_js", "verification_key.json");
         const wc = require("../circuit/pedersen_comm_babyjubjub_js/witness_calculator");
         const buffer = fs.readFileSync(wasm);
         circuit = await wc(buffer);
@@ -63,9 +62,6 @@ describe("Pedersen Commitment Test", function() {
         );
         const { proof, publicSignals } = await snarkjs.groth16.prove(zkey, witnessBuffer);
         console.log(proof)
-        const res = await snarkjs.groth16.exportSolidityCallData(proof, "");
-        //let result = res.substring(0, res.length - 3);
-        //console.log(res)
 
         const {a, b, c} = parseProof(proof);
         let ok = await contract.verifyProof(
