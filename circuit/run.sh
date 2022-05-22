@@ -29,4 +29,4 @@ snarkjs groth16 verify verification_key.json public.json proof.json
 snarkjs zkey export soliditycalldata public.json proof.json
 
 cd ..
-snarkjs zkey export solidityverifier ${base_dir}/circuit_final.zkey ../contracts/${circuit_name}_tmp_verifier.sol
+snarkjs zkey export solidityverifier ${base_dir}/circuit_final.zkey ../contracts/${circuit_name}_verifier.sol
